@@ -1,6 +1,6 @@
 # 形式化数学项目社区 — 需求细化与实现计划
 
-> 状态：P1 + P2（P2-1 ~ P2-7）已完成；**P3 数据层 + 批量导入 + 文件树真实拉取已完成并通过 `next build`**（详见 P3-0）；**P3-2 站点管理员权限已完成**（详见下方，含 `0007_admin_role.sql`，待 apply 入真库）；P3 验证链路（comparator GitHub Actions 闭环）待做。前端代码待 `git push` 部署，域名/DNS 等用户侧配置待办。
+> 状态：P1 + P2（P2-1 ~ P2-7）已完成；**P3 数据层 + 批量导入 + 文件树真实拉取已完成并通过 `next build`**（详见 P3-0）；**P3-2 站点管理员权限已完成**（详见下方，含 `0007_admin_role.sql` + `0008_lean_eval_categories.sql`，二者均已 apply 入真库）；P3 验证链路（comparator GitHub Actions 闭环）待做。前端代码待 `git push` 部署，域名/DNS 等用户侧配置待办。
 > 最后更新：2026-07-31
 
 ---
@@ -209,9 +209,9 @@ points_ledger(
 - [x] `/admin` 页面：列出全站管理员与全部项目，项目表含「官方保护」标记与删除按钮（`managed_by_sync` 行显示 Protected）；`getIsAdmin()` 服务端校验（seed-before-read）
 - [x] 中间件门户：对 `/<locale>/admin` 做「仅拦截匿名用户」的轻量预过滤（middleware 永不预渲染，可靠）；真实判定交给页面 `getIsAdmin()`，避免 Edge 下 service-role 调用与首任管理员死锁
 - [x] 客户端：导航头像下拉按 `session.user.isAdmin`（浏览器客户端读 `site_admins` 本人行，RLS 仅暴露自己）显示 Admin 入口；项目详情页对非 owner 但 isAdmin 显示管理徽章 + 编辑/删除入口
-- [ ] **待办**：`0007_admin_role.sql` 尚未 apply 入真库（当前 Supabase 连接器未连接、凭据为占位符）；部署前需在 Supabase SQL Editor / CLI 执行该迁移，并确认 `INITIAL_ADMIN_LOGINS` 已写入生产环境变量
+- [x] **已落地**：`0007_admin_role.sql` 由用户在本机 Supabase 执行；`0008_lean_eval_categories.sql` 由本机 Supabase MCP `execute_sql` 执行（231/231 lean-eval 项目已带数学分类标签）。确认 `INITIAL_ADMIN_LOGINS=lixiang90` 已写入生产环境变量。
 
-> 迁移清单补录：`0007_admin_role.sql`（P3-2 管理员角色 + `managed_by_sync` 删除保护）。**尚未 apply**，需在生产 Supabase 执行（本机 Supabase MCP / Dashboard）。
+> 迁移清单补录：`0007_admin_role.sql`（P3-2 管理员角色 + `managed_by_sync` 删除保护）、`0008_lean_eval_categories.sql`（231 个 lean-eval 挑战的数学分类标签）。**两者均已 apply 入真库**：0007 用户执行、0008 经本机 Supabase MCP `execute_sql` 执行并回查验证（with_cat 231/231）。
 
 **P3-1 验证链路（待做）**
 - [ ] 独立 verifier 仓库：Dockerfile（Lean + Mathlib 缓存 + landrun + lean4export）
