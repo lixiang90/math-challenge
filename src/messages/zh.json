@@ -230,6 +230,9 @@
       "commitFormat": "Commit 必须是 40 位十六进制字符。",
       "pathFormat": "路径必须为相对路径，不能以 / 开头或包含 ..",
       "slug": "无法生成唯一的 URL 别名，请换一个标题。",
+      "schemaMissing": "数据库缺少项目同步字段，请在 Supabase 的 SQL 编辑器执行 0002 迁移。",
+      "permissionDenied": "没有权限保存该项目（被行级安全策略拦截）。",
+      "duplicate": "该地址下已存在同名项目，请换一个标题。",
       "generic": "出错了，请稍后再试。"
     }
   }

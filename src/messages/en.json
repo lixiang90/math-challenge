@@ -230,6 +230,9 @@
       "commitFormat": "Commit must be 40 hexadecimal characters.",
       "pathFormat": "Path must be relative and cannot start with / or contain ..",
       "slug": "Could not create a unique URL slug; try a different title.",
+      "schemaMissing": "The database is missing the project sync columns. Run migration 0002 in the Supabase SQL editor.",
+      "permissionDenied": "You don't have permission to save this project (row-level security blocked it).",
+      "duplicate": "A project with this URL already exists; try a different title.",
       "generic": "Something went wrong. Please try again."
     }
   }

@@ -124,15 +124,17 @@ export async function createProjectAction(
   const parsed = parseDraft(formData);
   if ("fieldErrors" in parsed) return { ok: false, fieldErrors: parsed.fieldErrors };
 
+  let slug: string;
   try {
     const project = await createProject(parsed.draft, user.id);
-    const locale = (formData.get("locale") as string | null) || "en";
-    redirect(`/${locale}/projects/${project.slug}`);
-  } catch {
-    return { ok: false, error: "generic" };
+    slug = project.slug;
+  } catch (e) {
+    console.error("[createProjectAction] failed to insert project:", e);
+    return { ok: false, error: classifyError(e) };
   }
-  // redirect() throws, so this is unreachable.
-  return { ok: false, error: "generic" };
+
+  const locale = (formData.get("locale") as string | null) || "en";
+  redirect(`/${locale}/projects/${slug}`);
 }
 
 export async function updateProjectAction(
@@ -151,10 +153,32 @@ export async function updateProjectAction(
 
   try {
     await updateProject(slug, user.id, parsed.draft);
-    const locale = (formData.get("locale") as string | null) || "en";
-    redirect(`/${locale}/projects/${slug}`);
-  } catch {
-    return { ok: false, error: "generic" };
+  } catch (e) {
+    console.error("[updateProjectAction] failed to update project:", e);
+    return { ok: false, error: classifyError(e) };
   }
-  return { ok: false, error: "generic" };
+
+  const locale = (formData.get("locale") as string | null) || "en";
+  redirect(`/${locale}/projects/${slug}`);
+}
+
+/**
+ * Map a thrown database error to an actionable i18n key.
+ * `redirect()` is never passed here (it is called outside the try/catch),
+ * so every error reaching this function is a genuine failure.
+ */
+function classifyError(e: unknown): string {
+  const err = e as { code?: string; message?: string; details?: string };
+  const code = err?.code ?? "";
+  const msg = (err?.message ?? "").toLowerCase();
+  if (code === "42703" || msg.includes("does not exist") || msg.includes("column")) {
+    return "schemaMissing";
+  }
+  if (code === "42501" || msg.includes("row-level security") || msg.includes("permission")) {
+    return "permissionDenied";
+  }
+  if (code === "23505" || msg.includes("duplicate") || msg.includes("unique")) {
+    return "duplicate";
+  }
+  return "generic";
 }
