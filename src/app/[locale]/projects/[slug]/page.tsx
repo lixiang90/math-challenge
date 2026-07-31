@@ -18,6 +18,7 @@ import {
 } from "@/lib/mock/db";
 import { createClient } from "@/lib/supabase/server";
 import { resolveText } from "@/lib/i18n-content";
+import { categoryLabel, isSubjectTag } from "@/lib/categories";
 import type { AppLocale, ProjectMaintainer } from "@/lib/types";
 import { formatDate, githubRepoUrl } from "@/lib/utils";
 
@@ -272,9 +273,13 @@ export default async function ProjectPage({
               {project.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="rounded border border-rule bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-ink-faint"
+                  className={`rounded border px-1.5 py-0.5 font-mono text-[11px] ${
+                    isSubjectTag(tag)
+                      ? "border-accent/40 bg-accent-soft text-accent"
+                      : "border-rule bg-surface-2 text-ink-faint"
+                  }`}
                 >
-                  {tag}
+                  {categoryLabel(tag, locale as AppLocale)}
                 </span>
               ))}
             </div>

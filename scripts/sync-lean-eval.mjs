@@ -120,6 +120,46 @@ function readTar(buf) {
 }
 
 // ---------------------------------------------------------------------------
+// 数学分类（源自 LeanEval manifests/problems/<id>.toml 的 module 字段）
+// ---------------------------------------------------------------------------
+/**
+ * 把 LeanEval 分类名 slug 化：Algebra -> algebra，NumberTheory -> number-theory。
+ * 与 gen-category-tags.mjs 保持一致，保证同步写入与补丁 SQL 用同一套标签值。
+ */
+function slugifyCat(cat) {
+  return cat
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
+    .toLowerCase();
+}
+
+/**
+ * 解析 manifests/problems/<id>.toml，提取每个 problem 的数学分类。
+ * 分类 = module 字段 `LeanEval.<分类>.<Name>` 的第二段；
+ * 根目录的 EasyProblems.lean（two_plus_two 等自检题）归到 easy-problems。
+ * 返回 Map<problemId, categorySlug>。
+ */
+function parseManifestCategories(files) {
+  const map = new Map();
+  for (const [path, buf] of files) {
+    const m = path.match(/lean-eval-main\/manifests\/problems\/(.+)\.toml$/);
+    if (!m) continue;
+    const id = m[1];
+    const modLine = buf.toString("utf8").match(/^module\s*=\s*"([^"]+)"/m);
+    if (!modLine) continue;
+    const segs = modLine[1].split(".");
+    if (segs[0] !== "LeanEval") continue;
+    if (segs.length === 2 && segs[1] === "EasyProblems") {
+      map.set(id, "easy-problems");
+      continue;
+    }
+    if (segs.length < 3) continue;
+    map.set(id, slugifyCat(segs[1]));
+  }
+  return map;
+}
+
+// ---------------------------------------------------------------------------
 // 解析
 // ---------------------------------------------------------------------------
 /**
@@ -228,7 +268,7 @@ function buildStatement(name, meta, holes) {
   return s || `Challenge \`${name}\`.`;
 }
 
-function collect(files) {
+function collect(files, categoryById = new Map()) {
   const byName = new Map();
   for (const [path, buf] of files) {
     const i = path.indexOf(`/${GEN}`);
@@ -282,7 +322,11 @@ function collect(files) {
       isTest,
       difficulty: isTest ? "intro" : "research",
       bonusPoints: isTest ? POINTS_TEST : POINTS_RESEARCH,
-      tags: isTest ? [...TAGS, "test-problem"] : TAGS,
+      // 数学分类标签（来自 LeanEval manifests 的 module 字段），与通用标签合并
+      category: categoryById.get(name) || undefined,
+      tags: isTest
+        ? [...TAGS, "test-problem", ...(categoryById.get(name) ? [categoryById.get(name)] : [])]
+        : [...TAGS, ...(categoryById.get(name) ? [categoryById.get(name)] : [])],
       solutionModule: config.solution_module || "Solution",
       theoremNames: config.theorem_names || [],
       permittedAxioms: config.permitted_axioms || ["propext", "Quot.sound", "Classical.choice"],
@@ -480,7 +524,8 @@ async function main() {
   const gz = await loadTarball();
   log(`tarball ${(gz.length / 1024 / 1024).toFixed(1)} MB —— 解压中…`);
   const files = readTar(gunzipSync(gz));
-  const { items: all, skipped } = collect(files);
+  const categoryById = parseManifestCategories(files);
+  const { items: all, skipped } = collect(files, categoryById);
   const items = LIMIT ? all.slice(0, LIMIT) : all;
 
   log(`从 ${GEN} 解析出 ${all.length} 个挑战子文件夹` + (LIMIT ? `（本次只处理 ${items.length} 个）` : ""));

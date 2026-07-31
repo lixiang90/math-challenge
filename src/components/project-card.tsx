@@ -6,6 +6,7 @@ import { Link } from "@/i18n/navigation";
 import { Card, CardBody, CardFooter } from "@/components/ui/card";
 import { DifficultyBadge, TypeBadge } from "@/components/badges";
 import { resolveText } from "@/lib/i18n-content";
+import { categoryLabel, isSubjectTag } from "@/lib/categories";
 import type { AppLocale, ProjectListItem } from "@/lib/types";
 
 export function ProjectCard({ project }: { project: ProjectListItem }) {
@@ -39,14 +40,21 @@ export function ProjectCard({ project }: { project: ProjectListItem }) {
         </div>
 
         <div className="mt-auto flex flex-wrap gap-1.5 pt-1">
-          {project.tags.slice(0, 3).map((tag) => (
-            <span
-              key={tag}
-              className="rounded border border-rule bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-ink-faint"
-            >
-              {tag}
-            </span>
-          ))}
+          {(() => {
+            // 优先展示数学分类标签；不足 2 个时再用平台标签补齐。
+            const subjects = project.tags.filter(isSubjectTag);
+            const shown = subjects.length
+              ? subjects.slice(0, 2)
+              : project.tags.filter((t) => !isSubjectTag(t)).slice(0, 2);
+            return shown.map((tag) => (
+              <span
+                key={tag}
+                className="rounded border border-rule bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-ink-faint"
+              >
+                {isSubjectTag(tag) ? categoryLabel(tag, locale) : tag}
+              </span>
+            ));
+          })()}
         </div>
       </CardBody>
 

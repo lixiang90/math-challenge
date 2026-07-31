@@ -7,6 +7,7 @@ import { ProjectCard } from "@/components/project-card";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/field";
 import { resolveText } from "@/lib/i18n-content";
+import { categoryLabel, isSubjectTag } from "@/lib/categories";
 import type {
   AppLocale,
   Difficulty,
@@ -187,11 +188,17 @@ export function ProjectGrid({
               onChange={(e) => setTag(e.target.value)}
             >
               <option value="">{tc("all")}</option>
-              {tags.map((tg) => (
-                <option key={tg} value={tg}>
-                  {tg}
-                </option>
-              ))}
+              {[...tags]
+                .sort((a, b) => {
+                  const sa = isSubjectTag(a) ? 0 : 1;
+                  const sb = isSubjectTag(b) ? 0 : 1;
+                  return sa - sb || a.localeCompare(b);
+                })
+                .map((tg) => (
+                  <option key={tg} value={tg}>
+                    {categoryLabel(tg, locale)}
+                  </option>
+                ))}
             </Select>
           </div>
 
