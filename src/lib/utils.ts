@@ -49,6 +49,25 @@ export function slugify(input: string): string {
 const GITHUB_REPO_RE =
   /^https:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?(?:\/.*)?$/i;
 const SHA40_RE = /^[0-9a-f]{40}$/i;
+const GITHUB_TREE_RE =
+  /^https:\/\/github\.com\/([^/]+)\/([^/]+?)\/tree\/([^/?#]+)(?:\/([^?#]*))?/i;
+
+/** Parse a GitHub URL that already points at `/tree/{ref}/{path}`.
+ *  Returns the repo root, the ref (commit sha or branch), and the sub-path. */
+export function parseGithubTreeUrl(url: string): {
+  base: string;
+  ref: string | null;
+  path: string | null;
+} | null {
+  const m = url.match(GITHUB_TREE_RE);
+  if (!m) return null;
+  const owner = m[1];
+  const repo = m[2];
+  const ref = m[3] || null;
+  let path = m[4] ? m[4].replace(/\/+$/, "") : null;
+  if (path === "") path = null;
+  return { base: `https://github.com/${owner}/${repo}`, ref, path };
+}
 
 /** Build the most useful GitHub link for a project.
  *  - Normal projects link to the repo homepage.

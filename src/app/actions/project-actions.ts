@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createProject, updateProject } from "@/lib/mock/db";
+import { parseGithubTreeUrl } from "@/lib/utils";
 import type {
   Difficulty,
   I18nText,
@@ -67,6 +68,14 @@ function parseDraft(formData: FormData):
     }
   }
 
+  // Smart-parse a repo URL that already points at /tree/{ref}/{path}.
+  // The repo root is normalized; the embedded ref/path are used as a fallback
+  // only when the dedicated fields below are left blank.
+  const parsedTree = parseGithubTreeUrl(repoUrl);
+  const baseRepoUrl = parsedTree ? parsedTree.base : repoUrl;
+  const urlRef = parsedTree?.ref ?? null;
+  const urlPath = parsedTree?.path ?? null;
+
   let sync_commit: string | null = null;
   let sync_branch: string | null = null;
   let sync_path: string | null = null;
@@ -74,6 +83,7 @@ function parseDraft(formData: FormData):
     const commit = (formData.get("syncCommit") as string | null)?.trim() ?? "";
     const branch = (formData.get("syncBranch") as string | null)?.trim() ?? "";
     const path = (formData.get("syncPath") as string | null)?.trim() ?? "";
+
     if (commit) {
       if (!/^[0-9a-f]{40}$/i.test(commit)) fieldErrors.syncCommit = "commitFormat";
       else sync_commit = commit;
@@ -84,6 +94,14 @@ function parseDraft(formData: FormData):
         fieldErrors.syncPath = "pathFormat";
       } else sync_path = path;
     }
+
+    // Fall back to info embedded in the repo URL only when the field is blank.
+    // Explicitly-filled fields below always win.
+    if (!commit && !branch && urlRef) {
+      if (/^[0-9a-f]{40}$/i.test(urlRef)) sync_commit = urlRef;
+      else sync_branch = urlRef;
+    }
+    if (!path && urlPath) sync_path = urlPath;
   }
 
   if (Object.keys(fieldErrors).length > 0) return { fieldErrors };
@@ -100,7 +118,7 @@ function parseDraft(formData: FormData):
       title,
       summary,
       description,
-      repo_url: repoUrl,
+      repo_url: baseRepoUrl,
       default_branch: defaultBranch,
       sync_commit,
       sync_branch,
