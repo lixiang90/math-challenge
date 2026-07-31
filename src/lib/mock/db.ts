@@ -612,22 +612,33 @@ export async function listMaintainers(
   if (useMock()) return mock.listMaintainers(projectId);
 
   const supabase = await createClient();
-  const { data, error } = await supabase
+  // NOTE: project_members.user_id references auth.users (not profiles), so a
+  // `profiles(...)` embedded-select would fail with a PostgREST "could not find
+  // a relationship" 400. Resolve members, then fetch the profiles separately.
+  const { data: members, error } = await supabase
     .from("project_members")
-    .select("user_id, profiles(github_login, display_name)")
+    .select("user_id")
     .eq("project_id", projectId);
   if (error) throw error;
-  type Row = {
-    user_id: string;
-    profiles:
-      | { github_login: string; display_name: string }[]
-      | { github_login: string; display_name: string }
-      | null;
-  };
-  return (data ?? []).map((row: Row) => {
-    const p = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+  const userIds = (members ?? []).map((m) => (m as { user_id: string }).user_id);
+  if (userIds.length === 0) return [];
+
+  const { data: profiles, error: pErr } = await supabase
+    .from("profiles")
+    .select("id, github_login, display_name")
+    .in("id", userIds);
+  if (pErr) throw pErr;
+
+  const profileMap = new Map(
+    (profiles ?? []).map((p) => [
+      (p as { id: string }).id,
+      p as { id: string; github_login: string; display_name: string },
+    ])
+  );
+  return userIds.map((uid) => {
+    const p = profileMap.get(uid);
     return {
-      user_id: row.user_id,
+      user_id: uid,
       github_login: p?.github_login ?? "unknown",
       display_name: p?.display_name ?? "Unknown",
     };
