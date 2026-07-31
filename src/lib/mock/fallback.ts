@@ -110,6 +110,7 @@ export async function getProjectBySlug(
     .map((pr) => decorateProblem(pr.id));
   // 正文走 mock 内联 body；文件树走 GitHub 实时拉取，拿不到时回退到样例树
   const content = mockBodyContent(project.body, locale);
+  const contentZh = (project.body?.zh || "").trim() || undefined;
   const fileTree = opts.withTree
     ? (await fetchGithubFileTree({
         repoUrl: project.repo_url,
@@ -117,7 +118,7 @@ export async function getProjectBySlug(
         scopePath: project.sync_path,
       })) ?? leanTree
     : null;
-  return { ...decorateProject(project.id), problems: own, content, file_tree: fileTree };
+  return { ...decorateProject(project.id), problems: own, content, contentZh, file_tree: fileTree };
 }
 
 export async function getProblem(

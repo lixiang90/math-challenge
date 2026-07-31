@@ -212,6 +212,8 @@
     "summaryHint": "显示在卡片与搜索结果中。",
     "descriptionEn": "详细描述（英文，Markdown）",
     "descriptionEnHint": "较长的介绍，支持 KaTeX 数学公式。",
+    "descriptionZh": "详细描述（中文，Markdown）",
+    "descriptionZhHint": "选填；留空时自动回退到英文版本。",
     "repoUrl": "代码仓库地址",
     "repoUrlHint": "公开 Git 仓库，例如 https://github.com/user/repo。也可直接粘贴包含 /tree/分支/路径 的完整链接，系统会自动识别分支、commit 与路径。",
     "defaultBranch": "默认分支",

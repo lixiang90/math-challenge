@@ -180,8 +180,12 @@ export async function getProjectBySlug(
 
   const row = project as Project;
   // 正文走 Storage、文件树走 GitHub，两个都是外部 I/O，并发拿
-  const [content, fileTree] = await Promise.all([
+  const [content, contentZhRaw, fileTree] = await Promise.all([
     getProjectContent(row.content_path, row.content_locales, locale),
+    // 编辑页需要预填中文正文；zh == en 时跳过重复请求
+    locale !== "zh"
+      ? getProjectContent(row.content_path, row.content_locales, "zh")
+      : Promise.resolve({ value: "", isFallback: false }),
     opts.withTree
       ? fetchGithubFileTree({
           repoUrl: row.repo_url,
@@ -199,6 +203,7 @@ export async function getProjectBySlug(
     solver_count: solverIds.size,
     problems: own,
     content,
+    contentZh: contentZhRaw.value || undefined,
     file_tree: fileTree,
   };
 }

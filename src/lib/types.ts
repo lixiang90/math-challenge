@@ -190,6 +190,8 @@ export interface ProjectDetail extends ProjectListItem {
   problems: ProblemListItem[];
   /** 从 Storage 取回的正文，已按当前语种解析并处理回退。 */
   content: ProjectContent;
+  /** 编辑时预填中文正文（仅 edit 页面请求时填充）。 */
+  contentZh?: string;
   /** GitHub 实时拉取的文件树；拉取失败或非 GitHub 仓库时为 null。 */
   file_tree: FileNode[] | null;
 }

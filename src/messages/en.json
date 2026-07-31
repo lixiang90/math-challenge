@@ -212,6 +212,8 @@
     "summaryHint": "Shown on cards and search results.",
     "descriptionEn": "Description (English, Markdown)",
     "descriptionEnHint": "Longer overview. Supports KaTeX math.",
+    "descriptionZh": "Description (Chinese, Markdown)",
+    "descriptionZhHint": "Optional; falls back to English if left blank.",
     "repoUrl": "Repository URL",
     "repoUrlHint": "Public Git repository, e.g. https://github.com/user/repo. You can paste a full /tree/branch/path URL — the branch, commit and path are detected automatically.",
     "defaultBranch": "Default branch",

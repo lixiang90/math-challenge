@@ -153,15 +153,27 @@ export function ProjectForm({
       <FieldHint>{t("summaryHint")}</FieldHint>
 
       {/* Body content (stored per-locale in Supabase Storage) */}
-      <div>
-        <Label htmlFor="contentEn">{t("descriptionEn")}</Label>
-        <textarea
-          id="contentEn"
-          name="contentEn"
-          defaultValue={project?.content?.value ?? ""}
-          className={`${textareaClass} mt-1.5`}
-        />
-        <FieldHint className="mt-1">{t("descriptionEnHint")}</FieldHint>
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="contentEn">{t("descriptionEn")}</Label>
+          <textarea
+            id="contentEn"
+            name="contentEn"
+            defaultValue={project?.content?.value ?? ""}
+            className={`${textareaClass} mt-1.5`}
+          />
+          <FieldHint className="mt-1">{t("descriptionEnHint")}</FieldHint>
+        </div>
+        <div>
+          <Label htmlFor="contentZh">{t("descriptionZh")}</Label>
+          <textarea
+            id="contentZh"
+            name="contentZh"
+            defaultValue={project?.contentZh ?? ""}
+            className={`${textareaClass} mt-1.5`}
+          />
+          <FieldHint className="mt-1">{t("descriptionZhHint")}</FieldHint>
+        </div>
       </div>
 
       {/* Repo + branch */}
