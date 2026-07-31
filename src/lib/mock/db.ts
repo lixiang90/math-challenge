@@ -218,11 +218,18 @@ export async function getProblem(
   };
 }
 
+// Supabase `user_id` columns are uuid; a non-uuid value (e.g. the legacy
+// DEMO_USER_ID "u_ai") would otherwise throw "invalid input syntax for type
+// uuid" and crash the server component. Guard before querying.
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function listSubmissionsForProblem(
   problemId: string,
   userId: string
 ): Promise<Submission[]> {
   if (useMock()) return mock.listSubmissionsForProblem(problemId, userId);
+  if (!UUID_RE.test(userId)) return [];
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -239,6 +246,7 @@ export async function listSubmissionsForUser(
   userId: string
 ): Promise<SubmissionWithContext[]> {
   if (useMock()) return mock.listSubmissionsForUser(userId);
+  if (!UUID_RE.test(userId)) return [];
 
   const supabase = await createClient();
   const { data: subs, error } = await supabase
