@@ -155,7 +155,7 @@ export function SubmissionPanel({
         {!user ? (
           <div className="flex flex-col items-start gap-3 px-5 py-6">
             <p className="text-[13.5px] text-ink-muted">{t("signInPrompt")}</p>
-            <Button size="sm" onClick={signIn}>
+            <Button size="sm" onClick={() => void signIn()}>
               <Github className="size-4" />
               {tNav("signIn")}
             </Button>

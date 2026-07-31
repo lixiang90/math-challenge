@@ -40,14 +40,16 @@ export function ProfileView({
   const tn = useTranslations("nav");
   const locale = useLocale();
   const loc = locale as AppLocale;
-  const { user, signIn } = useSession();
+  const { user, isLoading, signIn } = useSession();
+
+  if (isLoading) return null;
 
   if (!user) {
     return (
       <div className="mx-auto max-w-md space-y-4 rounded-xl border border-rule bg-card px-6 py-10 text-center">
-        <h1 className="font-serif text-[20px]">{ta("demoTitle")}</h1>
+        <h1 className="font-serif text-[20px]">{ta("signInTitle")}</h1>
         <p className="text-[13.5px] leading-relaxed text-ink-muted">
-          {ta("demoBody")}
+          {ta("signInPrompt")}
         </p>
         <Button onClick={signIn}>
           <Github className="size-4" />
@@ -70,9 +72,18 @@ export function ProfileView({
   return (
     <div className="space-y-7">
       <header className="flex items-center gap-4">
-        <span className="flex size-14 items-center justify-center rounded-full bg-accent-soft font-serif text-[19px] text-accent">
-          {user.display_name.slice(0, 2).toUpperCase()}
-        </span>
+        {user.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={user.avatar_url}
+            alt={user.display_name}
+            className="size-14 rounded-full object-cover"
+          />
+        ) : (
+          <span className="flex size-14 items-center justify-center rounded-full bg-accent-soft font-serif text-[19px] text-accent">
+            {user.display_name.slice(0, 2).toUpperCase()}
+          </span>
+        )}
         <div>
           <h1 className="text-[24px] leading-tight">{user.display_name}</h1>
           <p className="font-mono text-[13px] text-ink-faint">

@@ -5,7 +5,6 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { routing } from "@/i18n/routing";
 import { SiteHeader } from "@/components/site-header";
 import { SessionProvider } from "@/components/session-provider";
-import { DEMO_USER_ID, profileById } from "@/lib/mock/profiles";
 import "../globals.css";
 import "katex/dist/katex.min.css";
 
@@ -52,7 +51,7 @@ export default async function LocaleLayout({
       </head>
       <body>
         <NextIntlClientProvider>
-          <SessionProvider demoUser={profileById(DEMO_USER_ID)}>
+          <SessionProvider>
             <div className="flex min-h-screen flex-col">
               <div className="bg-accent-soft px-4 py-1.5 text-center text-[12px] text-accent">
                 {tc("mockBanner")}

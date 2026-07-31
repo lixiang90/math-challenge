@@ -15,11 +15,20 @@ function initials(name: string) {
 
 export function UserMenu() {
   const t = useTranslations("nav");
-  const { user, signIn, signOut } = useSession();
+  const { user, isLoading, signIn, signOut } = useSession();
+
+  if (isLoading) {
+    return (
+      <div
+        className="size-8 animate-pulse rounded-full bg-accent-soft"
+        aria-hidden
+      />
+    );
+  }
 
   if (!user) {
     return (
-      <Button size="sm" onClick={signIn}>
+      <Button size="sm" onClick={() => void signIn()}>
         <Github className="size-4" />
         <span className="hidden sm:inline">{t("signIn")}</span>
       </Button>
@@ -30,9 +39,18 @@ export function UserMenu() {
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
         aria-label={t("profile")}
-        className="flex size-8 items-center justify-center rounded-full border border-rule-strong bg-accent-soft text-[12px] font-medium text-accent transition-colors hover:border-accent"
+        className="flex size-8 items-center justify-center overflow-hidden rounded-full border border-rule-strong bg-accent-soft text-[12px] font-medium text-accent transition-colors hover:border-accent"
       >
-        {initials(user.display_name).toUpperCase()}
+        {user.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={user.avatar_url}
+            alt={user.display_name}
+            className="size-full object-cover"
+          />
+        ) : (
+          initials(user.display_name).toUpperCase()
+        )}
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
@@ -45,9 +63,6 @@ export function UserMenu() {
               {user.display_name}
             </p>
             <p className="text-[12px] text-ink-faint">@{user.github_login}</p>
-            <p className="mt-1 text-[11px] text-ink-faint">
-              {t("demoAccount")}
-            </p>
           </div>
           <DropdownMenu.Separator className="my-1 h-px bg-rule" />
           <DropdownMenu.Item asChild>
@@ -61,7 +76,7 @@ export function UserMenu() {
           </DropdownMenu.Item>
           <DropdownMenu.Separator className="my-1 h-px bg-rule" />
           <DropdownMenu.Item
-            onSelect={signOut}
+            onSelect={() => void signOut()}
             className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none data-[highlighted]:bg-accent-soft"
           >
             <LogOut className="size-3.5" />

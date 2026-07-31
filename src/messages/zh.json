@@ -170,8 +170,8 @@
     "you": "我"
   },
   "auth": {
-    "demoTitle": "预览登录",
-    "demoBody": "GitHub OAuth 将在第二期接入。现在可以切换演示会话，预览登录后的界面。"
+    "signInTitle": "需要登录",
+    "signInPrompt": "使用 GitHub 登录以查看你的个人资料、提交记录与积分。"
   },
   "footer": {
     "builtWith": "验证由 Lean comparator 提供。",

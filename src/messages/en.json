@@ -170,8 +170,8 @@
     "you": "You"
   },
   "auth": {
-    "demoTitle": "Preview authentication",
-    "demoBody": "GitHub OAuth arrives in phase 2. For now you can toggle a demo session to preview signed-in views."
+    "signInTitle": "Sign in required",
+    "signInPrompt": "Sign in with GitHub to view your profile, submissions and points."
   },
   "footer": {
     "builtWith": "Verification powered by the Lean comparator.",
