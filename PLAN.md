@@ -170,8 +170,8 @@ points_ledger(
 
 ### P2 — 真数据与认证
 
-- [ ] Supabase 项目 + schema 迁移 + RLS 策略
-- [ ] GitHub OAuth App，Supabase Auth 接入，profiles 自动建档
+- [x] Supabase 项目 + schema 迁移 + RLS 策略
+- [x] GitHub OAuth App，Supabase Auth 接入，profiles 自动建档
 - [ ] mock 层替换为真实查询，服务端渲染
 - [ ] 项目创建 / 编辑表单（社区投稿），多语字段编辑器
 
