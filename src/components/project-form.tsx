@@ -16,7 +16,7 @@ import {
   updateProjectAction,
   type ProjectFormState,
 } from "@/app/actions/project-actions";
-import type { Project, ProjectType } from "@/lib/types";
+import type { ProjectDetail, ProjectType } from "@/lib/types";
 
 const DIFFICULTIES = ["intro", "easy", "medium", "hard", "research"] as const;
 
@@ -31,7 +31,7 @@ export function ProjectForm({
   locale: string;
   mode: "create" | "edit";
   slug?: string;
-  project?: Project | null;
+  project?: ProjectDetail | null;
 }) {
   const t = useTranslations("projectForm");
   const td = useTranslations("difficulty");
@@ -152,13 +152,13 @@ export function ProjectForm({
       </div>
       <FieldHint>{t("summaryHint")}</FieldHint>
 
-      {/* Description */}
+      {/* Body content (stored per-locale in Supabase Storage) */}
       <div>
-        <Label htmlFor="descriptionEn">{t("descriptionEn")}</Label>
+        <Label htmlFor="contentEn">{t("descriptionEn")}</Label>
         <textarea
-          id="descriptionEn"
-          name="descriptionEn"
-          defaultValue={project?.description?.en ?? ""}
+          id="contentEn"
+          name="contentEn"
+          defaultValue={project?.content?.value ?? ""}
           className={`${textareaClass} mt-1.5`}
         />
         <FieldHint className="mt-1">{t("descriptionEnHint")}</FieldHint>

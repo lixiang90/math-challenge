@@ -28,7 +28,8 @@ export async function generateMetadata({
   params: Promise<{ locale: string; slug: string }>;
 }) {
   const { locale, slug } = await params;
-  const project = await getProjectBySlug(slug);
+  // 元数据只用表内短字段，不必拉正文与文件树
+  const project = await getProjectBySlug(slug, locale as AppLocale);
   if (!project) return {};
   return {
     title: resolveText(project.title, locale as AppLocale).value,
@@ -45,7 +46,7 @@ export default async function ProjectPage({
   setRequestLocale(locale);
   const loc = locale as AppLocale;
 
-  const project = await getProjectBySlug(slug);
+  const project = await getProjectBySlug(slug, loc, { withTree: true });
   if (!project) notFound();
 
   let canEdit = false;
@@ -72,8 +73,8 @@ export default async function ProjectPage({
 
   const title = resolveText(project.title, loc);
   const summary = resolveText(project.summary, loc);
-  const description = resolveText(project.description, loc);
-  const readme = resolveText(project.readme, loc);
+  // 正文来自 Storage，getProjectBySlug 里已按语种解析并标好是否回退
+  const content = project.content;
 
   const meta = [
     { label: t("author"), value: `@${project.owner.github_login}` },
@@ -122,10 +123,12 @@ export default async function ProjectPage({
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_260px]">
         <div className="min-w-0 space-y-10">
-          <Section title={t("overview")}>
-            {description.isFallback && <FallbackNotice />}
-            <RichText>{description.value}</RichText>
-          </Section>
+          {content.value && (
+            <Section title={t("overview")}>
+              {content.isFallback && <FallbackNotice />}
+              <RichText>{content.value}</RichText>
+            </Section>
+          )}
 
           {project.type === "challenge" && (
             <Section
@@ -173,17 +176,20 @@ export default async function ProjectPage({
             </Section>
           )}
 
-          {readme.value && (
-            <Section title={t("readme")}>
-              <div className="rounded-xl border border-rule bg-card px-6 py-5">
-                {readme.isFallback && <FallbackNotice />}
-                <Markdown>{readme.value}</Markdown>
-              </div>
-            </Section>
-          )}
-
-          {project.file_tree && (
-            <Section title={t("files")}>
+          {project.file_tree && project.file_tree.length > 0 && (
+            <Section
+              title={t("files")}
+              action={
+                <a
+                  href={repoLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[13px] text-ink-muted transition-colors hover:text-accent"
+                >
+                  {t("viewOnGithub")}
+                </a>
+              }
+            >
               <FileTree nodes={project.file_tree} />
             </Section>
           )}

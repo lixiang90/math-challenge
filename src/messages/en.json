@@ -70,8 +70,8 @@
   },
   "project": {
     "overview": "Overview",
-    "readme": "README",
     "files": "Files",
+    "viewOnGithub": "View on GitHub",
     "problems": "Problems",
     "about": "About",
     "author": "Maintainer",

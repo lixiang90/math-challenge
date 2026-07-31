@@ -1,6 +1,6 @@
 # 形式化数学项目社区 — 需求细化与实现计划
 
-> 状态：P1 + P2（P2-1 ~ P2-7）已完成并通过 `next build`；前端代码待 `git push` 部署，域名/DNS 等用户侧配置待办。下一步 **P3 验证闭环**。
+> 状态：P1 + P2（P2-1 ~ P2-7）已完成；**P3 数据层 + 批量导入 + 文件树真实拉取已完成并通过 `next build`**（详见 P3-0）；P3 验证链路（comparator GitHub Actions 闭环）待做。前端代码待 `git push` 部署，域名/DNS 等用户侧配置待办。
 > 最后更新：2026-07-31
 
 ---
@@ -73,7 +73,7 @@ comparator 的真实执行链路是 `landrun 沙箱 → lake build Challenge →
 **共有**
 - 介绍区（富文本 / Markdown，支持 KaTeX）
 - 元数据侧栏：类型、难度、作者、创建时间、标签、Git 仓库链接
-- 仓库信息区：README 渲染、文件树（P5 再做真实拉取）
+- 仓库信息区：正文渲染（来自 Storage，按 locale→en 回退）、文件树（GitHub 实时拉取，已落地）
 
 **Challenge 额外**
 - 题目列表：题名、难度、bonus points、通过人数、我的状态
@@ -111,12 +111,16 @@ profiles(
 projects(
   id uuid pk, slug text unique, owner_id uuid → profiles,
   type text check in ('normal','challenge'),
-  title jsonb, summary jsonb, description jsonb,
+  title jsonb, summary jsonb,
+  content_path text,                -- Storage 前缀: project-content/projects/<slug>
+  content_locales text[],           -- 实际存在的语种, 免逐文件 HEAD 探测
   repo_url text, default_branch text default 'main',
   difficulty text check in ('intro','easy','medium','hard','research'),
   tags text[], status text check in ('draft','published','archived'),
   created_at, updated_at
 )
+-- 长正文外置于公开桶 project-content: projects/<slug>/<locale>.md（CDN 直读, 免密钥）
+-- 文件树不落库, 详情页实时从 GitHub 拉取 (src/lib/github.ts)
 
 challenge_problems(
   id uuid pk, project_id uuid → projects, slug text,
@@ -190,6 +194,14 @@ points_ledger(
 
 ### P3 — 验证闭环
 
+**P3-0 数据层与批量导入（已完成）**
+- [x] 数据结构改造：长正文外置公开桶 `project-content`（`projects/<slug>/<locale>.md`），`projects` 表仅留 `content_path` + `content_locales`；迁移 `0005_content_storage.sql` 建桶/读策略/加列，`0006_drop_inline_content.sql` 删 `description`/`readme`/`file_tree` 列
+- [x] 批量导入 lean-eval：`scripts/sync-lean-eval.mjs` 从 `leanprover/lean-eval` 的 `generated/` 拉取 231 道 comparator 挑战（子文件夹名=slug，`README.md`=正文），增量 upsert + 可剪枝（`--prune`/`--limit`/`--tarball`/`--dry-run`/`--emit`）；已导入 235 项目 / 231 题目 / 241 存储文件 / 22380 总积分
+- [x] 文件树真实拉取：`src/lib/github.ts` 走 git-trees API（递归+按 repo@ref 缓存 1h，截断时回退单层 contents API），详情页按 sync_commit→sync_branch→default_branch 选 ref 渲染；mock 模式 GitHub 不可达时回退样例树
+- [x] 读取链路打通：详情页正文走公开 CDN（`getProjectContent` 按 locale→en 回退、5 分钟缓存），mock 模式用内联 `body` 渲染；`tsc --noEmit` + `next build` 通过，详情页 200 烟雾测试通过
+- [x] 迁移补全：`0004_profiles_no_auth_fk.sql`（profiles 去掉对 auth.users 的硬外键，便于 mock/Demo 用户）
+
+**P3-1 验证链路（待做）**
 - [ ] 独立 verifier 仓库：Dockerfile（Lean + Mathlib 缓存 + landrun + lean4export）
 - [ ] GitHub Actions workflow：接收 `workflow_dispatch`，克隆解答仓库到指定 commit，生成 `config.json`，跑 comparator
 - [ ] Next.js Route Handler：提交入队 + 触发 workflow
@@ -205,7 +217,7 @@ points_ledger(
 
 ### P5 — 打磨
 
-- [ ] 真实拉取仓库 README 与文件树（GitHub API + 缓存）
+- [x] 真实拉取仓库文件树（GitHub API + 缓存）— 已在 P3-0 落地；README 正文改由 Storage 外置承载
 - [ ] 全文搜索（Postgres tsvector 或 Supabase FTS）
 - [ ] SEO / OG 图 / sitemap
 - [ ] 无障碍审查、暗色模式

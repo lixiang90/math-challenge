@@ -3,6 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { ProjectForm } from "@/components/project-form";
 import { createClient } from "@/lib/supabase/server";
 import { getProjectAccess, getProjectBySlug } from "@/lib/mock/db";
+import type { AppLocale } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,7 @@ export default async function EditProjectPage({
   } = await supabase.auth.getUser();
   if (!user) redirect(`/${locale}/me`);
 
-  const project = await getProjectBySlug(slug);
+  const project = await getProjectBySlug(slug, locale as AppLocale);
   if (!project) notFound();
 
   const access = await getProjectAccess(slug, user.id);

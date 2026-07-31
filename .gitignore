@@ -13,3 +13,6 @@ yarn-error.log*
 .workbuddy/
 *.tsbuildinfo
 next-env.d.ts
+
+# local import cache (lean-eval tarball, generated sql, logs)
+.cache/

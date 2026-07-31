@@ -1,4 +1,5 @@
 import type {
+  AppLocale,
   ChallengeProblem,
   LeaderboardRow,
   ProblemDetail,
@@ -14,6 +15,12 @@ import type {
 } from "@/lib/types";
 import { parseGithubOwner, slugify } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/server";
+import { fetchGithubFileTree } from "@/lib/github";
+import {
+  contentPathFor,
+  getProjectContent,
+  putProjectContent,
+} from "@/lib/project-content";
 import * as mock from "./fallback";
 
 /**
@@ -110,10 +117,17 @@ export async function listAllTags(): Promise<string[]> {
   return [...set].sort();
 }
 
+/** 文件树该拉哪个 ref：钉死的 commit 优先，其次同步分支，最后默认分支。 */
+function treeRef(project: Project): string {
+  return project.sync_commit || project.sync_branch || project.default_branch || "main";
+}
+
 export async function getProjectBySlug(
-  slug: string
+  slug: string,
+  locale: AppLocale = "en",
+  opts: { withTree?: boolean } = {}
 ): Promise<ProjectDetail | null> {
-  if (useMock()) return mock.getProjectBySlug(slug);
+  if (useMock()) return mock.getProjectBySlug(slug, locale, opts);
 
   const supabase = await createClient();
   const { data: project, error } = await supabase
@@ -163,13 +177,28 @@ export async function getProjectBySlug(
     for (const uid of solversByProblem.get(p.id) ?? []) solverIds.add(uid);
   }
 
+  const row = project as Project;
+  // 正文走 Storage、文件树走 GitHub，两个都是外部 I/O，并发拿
+  const [content, fileTree] = await Promise.all([
+    getProjectContent(row.content_path, row.content_locales, locale),
+    opts.withTree
+      ? fetchGithubFileTree({
+          repoUrl: row.repo_url,
+          ref: treeRef(row),
+          scopePath: row.sync_path,
+        })
+      : Promise.resolve(null),
+  ]);
+
   return {
-    ...(project as Project),
+    ...row,
     owner: profileMap.get(project.owner_id)!,
     problem_count: own.length,
     total_bonus_points: own.reduce((sum, p) => sum + p.bonus_points, 0),
     solver_count: solverIds.size,
     problems: own,
+    content,
+    file_tree: fileTree,
   };
 }
 
@@ -483,6 +512,27 @@ export async function getSiteStats() {
   };
 }
 
+/**
+ * 把草稿正文写进 Storage，返回要落到表里的路径与语种。
+ *
+ * 表单目前只收英文正文；将来加中文输入框时这里天然支持——
+ * 只要 draft.content 里带上 zh，就会多写一个 zh.md。
+ */
+async function persistContent(
+  slug: string,
+  content: ProjectDraft["content"]
+): Promise<{ content_path: string; content_locales: AppLocale[] }> {
+  const path = contentPathFor(slug);
+  const locales: AppLocale[] = [];
+  for (const locale of ["en", "zh"] as AppLocale[]) {
+    const md = content?.[locale]?.trim();
+    if (!md) continue;
+    await putProjectContent(path, locale, md);
+    locales.push(locale);
+  }
+  return { content_path: path, content_locales: locales };
+}
+
 function challengeSyncCols(draft: ProjectDraft) {
   return draft.type === "challenge"
     ? {
@@ -512,6 +562,8 @@ export async function createProject(
     slug = `${baseSlug}-${i}`;
   }
 
+  const contentCols = await persistContent(slug, draft.content);
+
   const { data, error } = await supabase
     .from("projects")
     .insert({
@@ -520,7 +572,7 @@ export async function createProject(
       type: draft.type,
       title: draft.title,
       summary: draft.summary,
-      description: draft.description,
+      ...contentCols,
       repo_url: draft.repo_url,
       default_branch: draft.default_branch || "main",
       difficulty: draft.difficulty,
@@ -542,13 +594,15 @@ export async function updateProject(
   if (useMock()) return mock.updateProject(slug, draft);
 
   const supabase = await createClient();
+  const contentCols = await persistContent(slug, draft.content);
+
   const { data, error } = await supabase
     .from("projects")
     .update({
       type: draft.type,
       title: draft.title,
       summary: draft.summary,
-      description: draft.description,
+      ...contentCols,
       repo_url: draft.repo_url,
       default_branch: draft.default_branch || "main",
       difficulty: draft.difficulty,

@@ -47,8 +47,8 @@ function parseDraft(formData: FormData):
   const summaryEn = (formData.get("summaryEn") as string | null)?.trim() ?? "";
   const summaryZh =
     (formData.get("summaryZh") as string | null)?.trim() || undefined;
-  const descriptionEn =
-    (formData.get("descriptionEn") as string | null)?.trim() ?? "";
+  const contentEn =
+    (formData.get("contentEn") as string | null)?.trim() ?? "";
   const repoUrl = (formData.get("repoUrl") as string | null)?.trim() ?? "";
   const defaultBranch =
     (formData.get("defaultBranch") as string | null)?.trim() || "main";
@@ -120,14 +120,14 @@ function parseDraft(formData: FormData):
   const summary: I18nText = summaryZh
     ? { en: summaryEn, zh: summaryZh }
     : { en: summaryEn };
-  const description: I18nText = descriptionEn ? { en: descriptionEn } : { en: "" };
+  const content: I18nText = contentEn ? { en: contentEn } : { en: "" };
 
   return {
     draft: {
       type,
       title,
       summary,
-      description,
+      content,
       repo_url: baseRepoUrl,
       default_branch: defaultBranch,
       sync_commit,

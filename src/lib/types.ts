@@ -41,7 +41,13 @@ export interface Project {
   type: ProjectType;
   title: I18nText;
   summary: I18nText;
-  description: I18nText;
+  /**
+   * Storage 对象前缀（桶 `project-content`），如 `projects/<slug>`。
+   * 正文本体是 `<content_path>/<locale>.md`，表里不再存长文本。
+   */
+  content_path: string | null;
+  /** 正文实际存在哪些语种，免去逐个 HEAD 探测文件是否存在。 */
+  content_locales: AppLocale[];
   repo_url: string;
   default_branch: string;
   /** Challenge only: pin the synced commit; null = latest at sync time. */
@@ -55,10 +61,14 @@ export interface Project {
   status: ProjectStatus;
   created_at: string;
   updated_at: string;
-  /** Phase 5 replaces this with a live GitHub API fetch. */
-  readme?: I18nText;
-  /** Phase 5 replaces this with a live GitHub tree fetch. */
-  file_tree?: FileNode[];
+}
+
+/** 一篇从 Storage 取回的项目正文。 */
+export interface ProjectContent {
+  /** Markdown 原文；正文缺失时为空串。 */
+  value: string;
+  /** 请求的语种没有译文，回退到了 `en`。 */
+  isFallback: boolean;
 }
 
 /** A user granted edit/maintain rights on a project via claim (besides owner). */
@@ -143,7 +153,8 @@ export interface ProjectDraft {
   type: ProjectType;
   title: I18nText;
   summary: I18nText;
-  description: I18nText;
+  /** 正文按语种写进 Storage，不入表。 */
+  content: I18nText;
   repo_url: string;
   default_branch: string;
   /** Challenge only; ignored for normal projects. */
@@ -171,6 +182,10 @@ export interface ProblemListItem extends ChallengeProblem {
 
 export interface ProjectDetail extends ProjectListItem {
   problems: ProblemListItem[];
+  /** 从 Storage 取回的正文，已按当前语种解析并处理回退。 */
+  content: ProjectContent;
+  /** GitHub 实时拉取的文件树；拉取失败或非 GitHub 仓库时为 null。 */
+  file_tree: FileNode[] | null;
 }
 
 export interface ProblemDetail extends ProblemListItem {

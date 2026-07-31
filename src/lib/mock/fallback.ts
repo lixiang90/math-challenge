@@ -1,8 +1,11 @@
 import type {
+  AppLocale,
+  I18nText,
   LeaderboardRow,
   ProblemDetail,
   ProblemListItem,
   Project,
+  ProjectContent,
   ProjectDetail,
   ProjectDraft,
   ProjectListItem,
@@ -11,10 +14,26 @@ import type {
   SubmissionWithContext,
 } from "@/lib/types";
 import { parseGithubOwner, slugify } from "@/lib/utils";
+import { fetchGithubFileTree } from "@/lib/github";
 import { profiles, profileById } from "./profiles";
-import { projects } from "./projects";
+import { leanTree, projects } from "./projects";
 import { problems } from "./problems";
 import { pointsLedger, submissions } from "./submissions";
+
+/** Which ref the file tree should be pulled from: pinned commit → branch → default branch. */
+function treeRef(p: { sync_commit?: string | null; sync_branch?: string | null; default_branch?: string }): string {
+  return p.sync_commit || p.sync_branch || p.default_branch || "main";
+}
+
+/** Build the rendered body from the mock `body` field, mirroring getProjectContent's locale→en fallback. */
+function mockBodyContent(
+  body: { en: string; zh?: string } | undefined,
+  locale: AppLocale
+): ProjectContent {
+  const value = (body?.[locale] || body?.en || "").trim();
+  const isFallback = !body || !body[locale];
+  return { value, isFallback };
+}
 
 /** In-memory project_members for mock mode (mirrors supabase.project_members). */
 const projectMembers: {
@@ -79,7 +98,9 @@ export async function listAllTags(): Promise<string[]> {
 }
 
 export async function getProjectBySlug(
-  slug: string
+  slug: string,
+  locale: AppLocale = "en",
+  opts: { withTree?: boolean } = {}
 ): Promise<ProjectDetail | null> {
   const project = projects.find((p) => p.slug === slug && p.status === "published");
   if (!project) return null;
@@ -87,7 +108,16 @@ export async function getProjectBySlug(
     .filter((pr) => pr.project_id === project.id)
     .sort((a, b) => a.order_index - b.order_index)
     .map((pr) => decorateProblem(pr.id));
-  return { ...decorateProject(project.id), problems: own };
+  // 正文走 mock 内联 body；文件树走 GitHub 实时拉取，拿不到时回退到样例树
+  const content = mockBodyContent(project.body, locale);
+  const fileTree = opts.withTree
+    ? (await fetchGithubFileTree({
+        repoUrl: project.repo_url,
+        ref: treeRef(project),
+        scopePath: project.sync_path,
+      })) ?? leanTree
+    : null;
+  return { ...decorateProject(project.id), problems: own, content, file_tree: fileTree };
 }
 
 export async function getProblem(
@@ -223,14 +253,16 @@ export async function createProject(
 ): Promise<Project> {
   const slug = uniqueSlug(slugify(draft.title.en));
   const now = new Date().toISOString();
-  const project: Project = {
+  const project: Project & { body?: I18nText } = {
     id: `mock_${slug}`,
     slug,
     owner_id: ownerId,
     type: draft.type,
     title: draft.title,
     summary: draft.summary,
-    description: draft.description,
+    content_path: null,
+    content_locales: [],
+    body: draft.content,
     repo_url: draft.repo_url,
     default_branch: draft.default_branch || "main",
     sync_commit: draft.sync_commit ?? null,
@@ -255,12 +287,12 @@ export async function updateProject(
     return createProject(draft, "u_ai");
   }
   const existing = projects[idx];
-  const updated: Project = {
+  const updated: Project & { body?: I18nText } = {
     ...existing,
     type: draft.type,
     title: draft.title,
     summary: draft.summary,
-    description: draft.description,
+    body: draft.content,
     repo_url: draft.repo_url,
     default_branch: draft.default_branch || "main",
     sync_commit: draft.sync_commit ?? null,

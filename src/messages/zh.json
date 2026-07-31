@@ -70,8 +70,8 @@
   },
   "project": {
     "overview": "介绍",
-    "readme": "README",
     "files": "文件",
+    "viewOnGithub": "在 GitHub 查看",
     "problems": "题目",
     "about": "信息",
     "author": "维护者",
