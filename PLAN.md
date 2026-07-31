@@ -1,6 +1,6 @@
 # 形式化数学项目社区 — 需求细化与实现计划
 
-> 状态：需求已对齐，待启动 P1
+> 状态：P1 + P2（P2-1 ~ P2-7）已完成并通过 `next build`；前端代码待 `git push` 部署，域名/DNS 等用户侧配置待办。下一步 **P3 验证闭环**。
 > 最后更新：2026-07-31
 
 ---
@@ -155,25 +155,38 @@ points_ledger(
 
 ## 四、分期实现计划
 
-### P1 — 前端骨架 + 假数据（本期交付，待你测试）
+### P1 — 前端骨架 + 假数据 ✅ 已完成
 
-- [ ] Next.js 15 App Router 项目初始化，TS 严格模式，Tailwind + shadcn/ui
-- [ ] next-intl 接入，`/[locale]` 路由，中英两套文案
-- [ ] 设计 token：浅色学术风配色、衬线标题字体、KaTeX 样式
-- [ ] 顶部导航（含语言切换、假登录态切换开关）
-- [ ] 首页 + 项目卡片网格（筛选 / 搜索 / 排序，全部前端内存实现）
-- [ ] 项目详情页 × 2 类型（Normal 走 README 展示，Challenge 多题目列表）
-- [ ] 题目页 + 提交表单（仓库 URL / commit / 路径校验，提交后展示假状态流转）
-- [ ] 个人中心 + 排行榜（假数据）
-- [ ] mock 数据层封装成与未来 Supabase 查询同形的接口，便于 P2 无痛替换
-- [ ] 部署到 Vercel 供测试
+- [x] Next.js 15 App Router 项目初始化，TS 严格模式，Tailwind + shadcn/ui
+- [x] next-intl 接入，`/[locale]` 路由，中英两套文案
+- [x] 设计 token：浅色学术风配色、衬线标题字体、KaTeX 样式 + 暗色主题
+- [x] 顶部导航（语言切换、用户区、发布项目入口）
+- [x] 首页 + 项目卡片网格（筛选 / 搜索 / 排序，前端内存实现）
+- [x] 项目详情页 × 2 类型（Normal 走 README 展示，Challenge 多题目列表）
+- [x] 题目页 + 提交表单（仓库 URL / commit / 路径校验，状态流转）
+- [x] 个人中心 + 排行榜（假数据）
+- [x] mock 数据层封装（与 Supabase 查询同形接口，便于 P2 替换）
+- [x] 部署到 Vercel（站点 `math-challenge-gamma.vercel.app`）
 
-### P2 — 真数据与认证
+### P2 — 真数据与认证 ✅ 已完成（P2-1 ~ P2-7）
 
-- [x] Supabase 项目 + schema 迁移 + RLS 策略
-- [x] GitHub OAuth App，Supabase Auth 接入，profiles 自动建档
-- [x] mock 层替换为真实查询，服务端渲染
-- [x] 项目创建 / 编辑表单（社区投稿），多语字段编辑器（Normal 整仓；Challenge 额外 commit/branch/path）
+- [x] **P2-1 基础设施**：Supabase 客户端层 + 中间件会话刷新（`@supabase/ssr`）
+- [x] **P2-2 客户端层**：`createClient` / `createServerClient` 封装，cookie 安全
+- [x] **P2-3 GitHub OAuth**：`signInWithOAuth({ provider: 'github' })`，profiles 自动建档（DB 触发器）
+- [x] **P2-4 Schema + RLS**：迁移 `0001_init_schema.sql`（profiles / projects / challenge_problems / submissions / points_ledger + RLS 策略）
+- [x] **P2-5 真实数据层**：mock 替换为真实 Supabase 查询；dispatcher 模式（真库 + 占位符时 mock 回退）；seed 数据；`/me` 服务端改用真实登录用户修复 `Application error`
+- [x] **P2-6 项目表单**：创建 / 编辑表单（社区投稿，server action + `useActionState`）；Normal 整仓；Challenge 额外 commit(默认最新)/branch(默认主分支)/path(默认根目录)；智能解析仓库 URL 中的 `/tree/{branch|commit}/{path}`，下方字段优先
+- [x] **P2-7 项目 claim + 多维护者**：迁移 `0003_project_members.sql`（project_members 表 + RLS 扩展：编辑权开放给 owner 或 maintainer）；GitHub 登录名 == 仓库 owner 可认领获编辑权；表单提交的项目自动归属提交者；详情页展示维护者列表 + 认领/编辑按钮
+
+> 迁移清单：`0001_init_schema.sql`（P2-4）、`0002_project_sync_config.sql`（P2-6 sync_commit/branch/path）、`0003_project_members.sql`（P2-7）。**三者均已经 Supabase MCP `apply_migration` 直接跑入真库并回查验证。**
+
+### 运维说明（P2 期间沉淀）
+
+- **Supabase MCP**：已在本机配置 `https://mcp.supabase.com/mcp?project_ref=dzfiwclvxlswdtdhkzpe`（OAuth 登录，不落盘令牌）；支持只读查询、诊断、`apply_migration`。匿名上下文 `auth.uid()`=null，故 owner 级 DELETE 仍需到 Dashboard 执行。
+- **数据自愈**：因 P2-6 旧代码 `redirect()` 被 try/catch 吞掉，曾误建 4 个重复项目 `zhang-bounded-prime-gaps` 及 `-1/-2/-3`。清理 SQL（Dashboard 执行）：
+  `delete from public.projects where slug in ('zhang-bounded-prime-gaps-1','zhang-bounded-prime-gaps-2','zhang-bounded-prime-gaps-3');`
+- **域名切换（待用户执行）**：GoDaddy `math-challenge.org` → Vercel（`A 76.76.21.21` / `CNAME cname.vercel-dns.com`）；Supabase Redirect URLs 加 `https://math-challenge.org/**`；Vercel 环境变量 `NEXT_PUBLIC_SITE_URL` 改 `https://math-challenge.org` 后 Redeploy。
+- **部署**：当前本地分支领先 `origin/main` 多个 commit，需 `git push` 触发 Vercel 部署后方可线上验证 P2-7 等前端能力。
 
 ### P3 — 验证闭环
 
@@ -216,4 +229,10 @@ points_ledger(
 
 ## 六、下一步
 
-等待确认后启动 **P1**，交付一个可在 Vercel 部署、中英可切、四类页面齐全的前端骨架。
+**P1 + P2 已收尾**，等待 `git push` 部署与域名切换完成后线上验证。随后启动 **P3 验证闭环**：
+
+- 独立 verifier 仓库（Dockerfile：Lean + Mathlib 缓存 + landrun + lean4export）
+- GitHub Actions `workflow_dispatch` 触发 ubuntu runner 跑 comparator
+- Next.js Route Handler 提交入队 + 触发 workflow；回调 endpoint（HMAC 校验）写回 `submissions`
+- 前端提交状态轮询 / Supabase Realtime 订阅
+- 打通一道真题端到端（替换题目页当前 DEMO_USER_ID 兜底查提交）
