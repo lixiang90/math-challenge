@@ -1,6 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { getLeaderboard } from "@/lib/mock/db";
-import { DEMO_USER_ID } from "@/lib/mock/profiles";
+import { createClient } from "@/lib/supabase/server";
 import { Badge } from "@/components/ui/badge";
 
 export default async function LeaderboardPage({
@@ -13,6 +13,10 @@ export default async function LeaderboardPage({
 
   const t = await getTranslations("leaderboard");
   const rows = await getLeaderboard();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   return (
     <div className="space-y-6">
@@ -36,40 +40,51 @@ export default async function LeaderboardPage({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr
-                key={row.profile.id}
-                className="border-b border-rule last:border-b-0"
-              >
-                <td className="px-4 py-3 font-mono text-[13px] text-ink-faint">
-                  {row.rank}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2.5">
-                    <span className="flex size-7 items-center justify-center rounded-full bg-accent-soft text-[11px] font-medium text-accent">
-                      {row.profile.display_name.slice(0, 2).toUpperCase()}
-                    </span>
-                    <span>
-                      <span className="block leading-tight text-ink">
-                        {row.profile.display_name}
-                      </span>
-                      <span className="block font-mono text-[12px] text-ink-faint">
-                        @{row.profile.github_login}
-                      </span>
-                    </span>
-                    {row.profile.id === DEMO_USER_ID && (
-                      <Badge tone="accent">{t("you")}</Badge>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-right font-mono text-[13px] text-ink-muted">
-                  {row.solved_count}
-                </td>
-                <td className="px-4 py-3 text-right font-serif text-[17px]">
-                  {row.points}
+            {rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={4}
+                  className="px-4 py-12 text-center text-[14px] text-ink-muted"
+                >
+                  {t("empty")}
                 </td>
               </tr>
-            ))}
+            ) : (
+              rows.map((row) => (
+                <tr
+                  key={row.profile.id}
+                  className="border-b border-rule last:border-b-0"
+                >
+                  <td className="px-4 py-3 font-mono text-[13px] text-ink-faint">
+                    {row.rank}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex size-7 items-center justify-center rounded-full bg-accent-soft text-[11px] font-medium text-accent">
+                        {row.profile.display_name.slice(0, 2).toUpperCase()}
+                      </span>
+                      <span>
+                        <span className="block leading-tight text-ink">
+                          {row.profile.display_name}
+                        </span>
+                        <span className="block font-mono text-[12px] text-ink-faint">
+                          @{row.profile.github_login}
+                        </span>
+                      </span>
+                      {user && row.profile.id === user.id && (
+                        <Badge tone="accent">{t("you")}</Badge>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-[13px] text-ink-muted">
+                    {row.solved_count}
+                  </td>
+                  <td className="px-4 py-3 text-right font-serif text-[17px]">
+                    {row.points}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

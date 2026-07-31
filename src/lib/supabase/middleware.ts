@@ -14,7 +14,8 @@ export async function updateSession(request: NextRequest): Promise<NextResponse 
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   // Guard: skip entirely when not configured to avoid crashing the site.
-  if (!url || !anon || url.includes(PLACEHOLDER)) {
+  // Case-insensitive so mixed-case placeholders (YOUR-PROJECT-ref) also match.
+  if (!url || !anon || url.toLowerCase().includes(PLACEHOLDER)) {
     return null;
   }
 

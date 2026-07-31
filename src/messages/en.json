@@ -167,7 +167,8 @@
     "user": "User",
     "solved": "Solved",
     "points": "Points",
-    "you": "You"
+    "you": "You",
+    "empty": "No one has earned points yet. Be the first to solve a challenge."
   },
   "auth": {
     "signInTitle": "Sign in required",

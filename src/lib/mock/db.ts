@@ -1,71 +1,108 @@
 import type {
+  ChallengeProblem,
   LeaderboardRow,
   ProblemDetail,
   ProblemListItem,
+  Profile,
+  Project,
   ProjectDetail,
   ProjectListItem,
   Submission,
   SubmissionWithContext,
 } from "@/lib/types";
-import { profiles, profileById } from "./profiles";
-import { projects } from "./projects";
-import { problems } from "./problems";
-import { pointsLedger, submissions } from "./submissions";
+import { createClient } from "@/lib/supabase/server";
+import * as mock from "./fallback";
 
 /**
- * Phase-1 data layer.
+ * Phase-2 data layer.
  *
- * Every function here is async and returns the same shape the phase-2
- * Supabase queries will return, so swapping the implementation later is a
- * one-file change. Do not import the raw mock arrays outside this module.
+ * Uses real Supabase queries when credentials are configured; otherwise falls
+ * back to the local mock data in `./fallback.ts`. The exported shapes are
+ * identical in both modes, so pages/components do not need to change.
  */
 
-function decorateProblem(problemId: string): ProblemListItem {
-  const problem = problems.find((p) => p.id === problemId)!;
-  const solverIds = new Set(
-    submissions
-      .filter((s) => s.problem_id === problemId && s.status === "passed")
-      .map((s) => s.user_id)
-  );
-  return {
-    ...problem,
-    solver_count: solverIds.size,
-    requires_manual_review: problem.definition_names.length > 0,
-  };
-}
-
-function decorateProject(projectId: string): ProjectListItem {
-  const project = projects.find((p) => p.id === projectId)!;
-  const own = problems.filter((pr) => pr.project_id === projectId);
-  const solverIds = new Set(
-    submissions
-      .filter(
-        (s) =>
-          s.status === "passed" && own.some((pr) => pr.id === s.problem_id)
-      )
-      .map((s) => s.user_id)
-  );
-  return {
-    ...project,
-    owner: profileById(project.owner_id),
-    problem_count: own.length,
-    total_bonus_points: own.reduce((sum, pr) => sum + pr.bonus_points, 0),
-    solver_count: solverIds.size,
-  };
+function useMock(): boolean {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.toLowerCase();
+  return !url || url.includes("your-project-ref") || url.includes("example.com");
 }
 
 export async function listProjects(): Promise<ProjectListItem[]> {
-  // Phase 2: becomes a filtered Postgres query with RLS applied.
-  return projects
-    .filter((p) => p.status === "published")
-    .map((p) => decorateProject(p.id));
+  if (useMock()) return mock.listProjects();
+
+  const supabase = await createClient();
+  const [projectsRes, problemsRes, submissionsRes, profilesRes] =
+    await Promise.all([
+      supabase
+        .from("projects")
+        .select("*")
+        .eq("status", "published")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("challenge_problems")
+        .select("id,project_id,bonus_points"),
+      supabase
+        .from("submissions")
+        .select("problem_id,user_id,status")
+        .eq("status", "passed"),
+      supabase.from("profiles").select("*"),
+    ]);
+
+  if (projectsRes.error) throw projectsRes.error;
+  const projects = (projectsRes.data ?? []) as Project[];
+  const problems =
+    (problemsRes.data ?? []) as Pick<
+      ChallengeProblem,
+      "id" | "project_id" | "bonus_points"
+    >[];
+  const submissions = (submissionsRes.data ?? []) as Pick<
+    Submission,
+    "problem_id" | "user_id" | "status"
+  >[];
+  const profiles = (profilesRes.data ?? []) as Profile[];
+
+  const profileMap = new Map(profiles.map((p) => [p.id, p]));
+  const problemsByProject = new Map<string, typeof problems>();
+  for (const p of problems) {
+    const arr = problemsByProject.get(p.project_id) ?? [];
+    arr.push(p);
+    problemsByProject.set(p.project_id, arr);
+  }
+  const solversByProblem = new Map<string, Set<string>>();
+  for (const s of submissions) {
+    const set = solversByProblem.get(s.problem_id) ?? new Set();
+    set.add(s.user_id);
+    solversByProblem.set(s.problem_id, set);
+  }
+
+  return projects.map((project) => {
+    const own = problemsByProject.get(project.id) ?? [];
+    const solverIds = new Set<string>();
+    for (const p of own) {
+      for (const uid of solversByProblem.get(p.id) ?? []) solverIds.add(uid);
+    }
+    return {
+      ...project,
+      owner: profileMap.get(project.owner_id)!,
+      problem_count: own.length,
+      total_bonus_points: own.reduce((sum, p) => sum + p.bonus_points, 0),
+      solver_count: solverIds.size,
+    };
+  });
 }
 
 export async function listAllTags(): Promise<string[]> {
+  if (useMock()) return mock.listAllTags();
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("projects")
+    .select("tags")
+    .eq("status", "published");
+  if (error) throw error;
+
   const set = new Set<string>();
-  for (const p of projects) {
-    if (p.status !== "published") continue;
-    for (const tag of p.tags) set.add(tag);
+  for (const row of data ?? []) {
+    for (const tag of (row.tags as string[]) ?? []) set.add(tag);
   }
   return [...set].sort();
 }
@@ -73,44 +110,109 @@ export async function listAllTags(): Promise<string[]> {
 export async function getProjectBySlug(
   slug: string
 ): Promise<ProjectDetail | null> {
-  const project = projects.find((p) => p.slug === slug && p.status === "published");
+  if (useMock()) return mock.getProjectBySlug(slug);
+
+  const supabase = await createClient();
+  const { data: project, error } = await supabase
+    .from("projects")
+    .select("*")
+    .eq("slug", slug)
+    .eq("status", "published")
+    .maybeSingle();
+  if (error) throw error;
   if (!project) return null;
-  const own = problems
-    .filter((pr) => pr.project_id === project.id)
-    .sort((a, b) => a.order_index - b.order_index)
-    .map((pr) => decorateProblem(pr.id));
-  return { ...decorateProject(project.id), problems: own };
+
+  const [problemsRes, submissionsRes, profilesRes] = await Promise.all([
+    supabase
+      .from("challenge_problems")
+      .select("*")
+      .eq("project_id", project.id)
+      .order("order_index", { ascending: true }),
+    supabase
+      .from("submissions")
+      .select("problem_id,user_id,status")
+      .eq("status", "passed"),
+    supabase.from("profiles").select("*"),
+  ]);
+
+  const problems = (problemsRes.data ?? []) as ChallengeProblem[];
+  const submissions = (submissionsRes.data ?? []) as Pick<
+    Submission,
+    "problem_id" | "user_id" | "status"
+  >[];
+  const profiles = (profilesRes.data ?? []) as Profile[];
+  const profileMap = new Map(profiles.map((p) => [p.id, p]));
+
+  const solversByProblem = new Map<string, Set<string>>();
+  for (const s of submissions) {
+    const set = solversByProblem.get(s.problem_id) ?? new Set();
+    set.add(s.user_id);
+    solversByProblem.set(s.problem_id, set);
+  }
+
+  const own = problems.map((p) => ({
+    ...p,
+    solver_count: solversByProblem.get(p.id)?.size ?? 0,
+    requires_manual_review: p.definition_names.length > 0,
+  }));
+  const solverIds = new Set<string>();
+  for (const p of own) {
+    for (const uid of solversByProblem.get(p.id) ?? []) solverIds.add(uid);
+  }
+
+  return {
+    ...(project as Project),
+    owner: profileMap.get(project.owner_id)!,
+    problem_count: own.length,
+    total_bonus_points: own.reduce((sum, p) => sum + p.bonus_points, 0),
+    solver_count: solverIds.size,
+    problems: own,
+  };
 }
 
 export async function getProblem(
   projectSlug: string,
   problemSlug: string
 ): Promise<ProblemDetail | null> {
-  const project = projects.find((p) => p.slug === projectSlug);
+  if (useMock()) return mock.getProblem(projectSlug, problemSlug);
+
+  const supabase = await createClient();
+  const { data: project } = await supabase
+    .from("projects")
+    .select("id,slug,title,repo_url,default_branch")
+    .eq("slug", projectSlug)
+    .maybeSingle();
   if (!project) return null;
-  const problem = problems.find(
-    (pr) => pr.project_id === project.id && pr.slug === problemSlug
-  );
+
+  const { data: problem } = await supabase
+    .from("challenge_problems")
+    .select("*")
+    .eq("project_id", project.id)
+    .eq("slug", problemSlug)
+    .maybeSingle();
   if (!problem) return null;
 
+  const { data: passedSubmissions } = await supabase
+    .from("submissions")
+    .select("user_id")
+    .eq("problem_id", problem.id)
+    .eq("status", "passed");
   const solverIds = [
-    ...new Set(
-      submissions
-        .filter((s) => s.problem_id === problem.id && s.status === "passed")
-        .map((s) => s.user_id)
-    ),
+    ...new Set((passedSubmissions ?? []).map((s) => s.user_id as string)),
   ];
+  const { data: solvers } = await supabase
+    .from("profiles")
+    .select("*")
+    .in("id", solverIds);
 
   return {
-    ...decorateProblem(problem.id),
-    project: {
-      id: project.id,
-      slug: project.slug,
-      title: project.title,
-      repo_url: project.repo_url,
-      default_branch: project.default_branch,
-    },
-    solvers: solverIds.map(profileById),
+    ...(problem as ChallengeProblem),
+    solver_count: solverIds.length,
+    requires_manual_review: (problem.definition_names as string[]).length > 0,
+    project,
+    solvers: ((solvers ?? []) as Profile[]).filter((p) =>
+      solverIds.includes(p.id)
+    ),
   };
 }
 
@@ -118,93 +220,254 @@ export async function listSubmissionsForProblem(
   problemId: string,
   userId: string
 ): Promise<Submission[]> {
-  return submissions
-    .filter((s) => s.problem_id === problemId && s.user_id === userId)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
-}
+  if (useMock()) return mock.listSubmissionsForProblem(problemId, userId);
 
-function withContext(s: Submission): SubmissionWithContext {
-  const problem = problems.find((p) => p.id === s.problem_id)!;
-  const project = projects.find((p) => p.id === problem.project_id)!;
-  return {
-    ...s,
-    problem: {
-      id: problem.id,
-      slug: problem.slug,
-      title: problem.title,
-      project_id: problem.project_id,
-    },
-    project: { id: project.id, slug: project.slug, title: project.title },
-  };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("submissions")
+    .select("*")
+    .eq("problem_id", problemId)
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as Submission[];
 }
 
 export async function listSubmissionsForUser(
   userId: string
 ): Promise<SubmissionWithContext[]> {
-  return submissions
-    .filter((s) => s.user_id === userId)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at))
-    .map(withContext);
+  if (useMock()) return mock.listSubmissionsForUser(userId);
+
+  const supabase = await createClient();
+  const { data: subs, error } = await supabase
+    .from("submissions")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  if (!subs?.length) return [];
+
+  const problemIds = [...new Set(subs.map((s) => s.problem_id as string))];
+  const { data: problems } = await supabase
+    .from("challenge_problems")
+    .select("id,slug,title,project_id")
+    .in("id", problemIds);
+  const projectIds = [
+    ...new Set((problems ?? []).map((p) => p.project_id as string)),
+  ];
+  const { data: projects } = await supabase
+    .from("projects")
+    .select("id,slug,title")
+    .in("id", projectIds);
+
+  const problemMap = new Map(
+    (problems ?? []).map((p) => [
+      p.id as string,
+      {
+        id: p.id as string,
+        slug: p.slug as string,
+        title: p.title as { en: string; zh?: string },
+        project_id: p.project_id as string,
+      },
+    ])
+  );
+  const projectMap = new Map(
+    (projects ?? []).map((p) => [
+      p.id as string,
+      {
+        id: p.id as string,
+        slug: p.slug as string,
+        title: p.title as { en: string; zh?: string },
+      },
+    ])
+  );
+
+  return (subs as Submission[]).map((s) => ({
+    ...s,
+    problem: problemMap.get(s.problem_id)!,
+    project: projectMap.get(problemMap.get(s.problem_id)!.project_id)!,
+  }));
 }
 
 export async function listProjectsByOwner(
   userId: string
 ): Promise<ProjectListItem[]> {
-  return projects
-    .filter((p) => p.owner_id === userId)
-    .map((p) => decorateProject(p.id));
+  if (useMock()) return mock.listProjectsByOwner(userId);
+
+  const supabase = await createClient();
+  const [projectsRes, problemsRes, submissionsRes, profilesRes] =
+    await Promise.all([
+      supabase
+        .from("projects")
+        .select("*")
+        .eq("owner_id", userId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("challenge_problems")
+        .select("id,project_id,bonus_points"),
+      supabase
+        .from("submissions")
+        .select("problem_id,user_id,status")
+        .eq("status", "passed"),
+      supabase.from("profiles").select("*"),
+    ]);
+
+  if (projectsRes.error) throw projectsRes.error;
+  const projects = (projectsRes.data ?? []) as Project[];
+  const problems =
+    (problemsRes.data ?? []) as Pick<
+      ChallengeProblem,
+      "id" | "project_id" | "bonus_points"
+    >[];
+  const submissions = (submissionsRes.data ?? []) as Pick<
+    Submission,
+    "problem_id" | "user_id" | "status"
+  >[];
+  const profiles = (profilesRes.data ?? []) as Profile[];
+
+  const profileMap = new Map(profiles.map((p) => [p.id, p]));
+  const problemsByProject = new Map<string, typeof problems>();
+  for (const p of problems) {
+    const arr = problemsByProject.get(p.project_id) ?? [];
+    arr.push(p);
+    problemsByProject.set(p.project_id, arr);
+  }
+  const solversByProblem = new Map<string, Set<string>>();
+  for (const s of submissions) {
+    const set = solversByProblem.get(s.problem_id) ?? new Set();
+    set.add(s.user_id);
+    solversByProblem.set(s.problem_id, set);
+  }
+
+  return projects.map((project) => {
+    const own = problemsByProject.get(project.id) ?? [];
+    const solverIds = new Set<string>();
+    for (const p of own) {
+      for (const uid of solversByProblem.get(p.id) ?? []) solverIds.add(uid);
+    }
+    return {
+      ...project,
+      owner: profileMap.get(project.owner_id)!,
+      problem_count: own.length,
+      total_bonus_points: own.reduce((sum, p) => sum + p.bonus_points, 0),
+      solver_count: solverIds.size,
+    };
+  });
 }
 
 export async function getPointsLedger(userId: string) {
-  return pointsLedger
-    .filter((e) => e.user_id === userId)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+  if (useMock()) return mock.getPointsLedger(userId);
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("points_ledger")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data ?? [];
 }
 
 export async function getProfileStats(userId: string) {
-  const mine = submissions.filter((s) => s.user_id === userId);
+  if (useMock()) return mock.getProfileStats(userId);
+
+  const supabase = await createClient();
+  const [profileRes, subsRes, projectsRes, ledgerRes] = await Promise.all([
+    supabase.from("profiles").select("*").eq("id", userId).single(),
+    supabase
+      .from("submissions")
+      .select("status,problem_id")
+      .eq("user_id", userId),
+    supabase.from("projects").select("id").eq("owner_id", userId),
+    supabase.from("points_ledger").select("delta").eq("user_id", userId),
+  ]);
+
+  if (profileRes.error) throw profileRes.error;
+  const profile = profileRes.data as Profile;
+  const subs = (subsRes.data ?? []) as Pick<Submission, "status" | "problem_id">[];
   const solved = new Set(
-    mine.filter((s) => s.status === "passed").map((s) => s.problem_id)
+    subs.filter((s) => s.status === "passed").map((s) => s.problem_id)
   );
+  const points = (ledgerRes.data ?? []).reduce(
+    (sum: number, e: { delta: number }) => sum + e.delta,
+    0
+  );
+
   return {
-    profile: profileById(userId),
-    submission_count: mine.length,
+    profile,
+    submission_count: subs.length,
     solved_count: solved.size,
-    project_count: projects.filter((p) => p.owner_id === userId).length,
-    points: pointsLedger
-      .filter((e) => e.user_id === userId)
-      .reduce((sum, e) => sum + e.delta, 0),
+    project_count: (projectsRes.data ?? []).length,
+    points,
   };
 }
 
 export async function getLeaderboard(): Promise<LeaderboardRow[]> {
+  if (useMock()) return mock.getLeaderboard();
+
+  const supabase = await createClient();
+  const [profilesRes, ledgerRes, subsRes] = await Promise.all([
+    supabase.from("profiles").select("*"),
+    supabase.from("points_ledger").select("user_id,delta"),
+    supabase
+      .from("submissions")
+      .select("user_id,problem_id,status")
+      .eq("status", "passed"),
+  ]);
+
+  const profiles = (profilesRes.data ?? []) as Profile[];
+  const ledger = ledgerRes.data ?? [];
+  const subs = subsRes.data ?? [];
+
+  const pointsByUser = new Map<string, number>();
+  for (const e of ledger) {
+    const uid = e.user_id as string;
+    pointsByUser.set(uid, (pointsByUser.get(uid) ?? 0) + (e.delta as number));
+  }
+  const solvedByUser = new Map<string, Set<string>>();
+  for (const s of subs) {
+    if (s.status !== "passed") continue;
+    const uid = s.user_id as string;
+    const set = solvedByUser.get(uid) ?? new Set();
+    set.add(s.problem_id as string);
+    solvedByUser.set(uid, set);
+  }
+
   const rows = profiles
-    .map((profile) => {
-      const points = pointsLedger
-        .filter((e) => e.user_id === profile.id)
-        .reduce((sum, e) => sum + e.delta, 0);
-      const solved = new Set(
-        submissions
-          .filter((s) => s.user_id === profile.id && s.status === "passed")
-          .map((s) => s.problem_id)
-      ).size;
-      return { profile, points, solved_count: solved };
-    })
+    .map((profile) => ({
+      profile,
+      points: pointsByUser.get(profile.id) ?? 0,
+      solved_count: solvedByUser.get(profile.id)?.size ?? 0,
+    }))
     .sort((a, b) => b.points - a.points || b.solved_count - a.solved_count);
 
   return rows.map((r, i) => ({ ...r, rank: i + 1 }));
 }
 
 export async function getSiteStats() {
-  const published = projects.filter((p) => p.status === "published");
-  const openProblems = problems.filter((p) => p.status === "open");
-  const solvers = new Set(
-    submissions.filter((s) => s.status === "passed").map((s) => s.user_id)
+  if (useMock()) return mock.getSiteStats();
+
+  const supabase = await createClient();
+  const [projectsRes, problemsRes, subsRes, ledgerRes] = await Promise.all([
+    supabase.from("projects").select("id", { count: "exact" }).eq("status", "published"),
+    supabase.from("challenge_problems").select("id", { count: "exact" }).eq("status", "open"),
+    supabase
+      .from("submissions")
+      .select("user_id")
+      .eq("status", "passed"),
+    supabase.from("points_ledger").select("delta"),
+  ]);
+
+  const solvers = new Set((subsRes.data ?? []).map((s) => s.user_id as string));
+  const points = (ledgerRes.data ?? []).reduce(
+    (sum: number, e: { delta: number }) => sum + e.delta,
+    0
   );
+
   return {
-    projects: published.length,
-    problems: openProblems.length,
+    projects: projectsRes.count ?? 0,
+    problems: problemsRes.count ?? 0,
     solvers: solvers.size,
-    points: pointsLedger.reduce((sum, e) => sum + e.delta, 0),
+    points,
   };
 }
