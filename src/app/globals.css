@@ -1,0 +1,231 @@
+@import "tailwindcss";
+
+/* Make `dark:` utilities follow the .dark class on <html> (not the OS setting),
+   so the manual toggle controls them. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
+    "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", Georgia, serif;
+  --font-mono: ui-monospace, "JetBrains Mono", "SFMono-Regular", Menlo,
+    Consolas, "Liberation Mono", monospace;
+
+  --color-paper: #fbfaf7;
+  --color-card: #ffffff;
+  --color-ink: #1b1a17;
+  --color-ink-muted: #6b6862;
+  --color-ink-faint: #9a968e;
+  --color-rule: #e8e4db;
+  --color-rule-strong: #d5d0c3;
+
+  --color-accent: #1f3a6e;
+  --color-accent-hover: #16294f;
+  --color-accent-soft: #ecf1fa;
+
+  --color-gold: #8a5f13;
+  --color-gold-soft: #faf1dc;
+
+  --color-verify: #14653c;
+  --color-verify-soft: #e5f3ea;
+
+  --color-fail: #a12f2f;
+  --color-fail-soft: #fbeaea;
+
+  --color-pending: #7a5a11;
+  --color-pending-soft: #fdf3dd;
+
+  /* Subtle surface shades used for insets, table headers, hovers, code blocks. */
+  --color-surface-2: #f7f5ef;
+  --color-surface-3: #faf9f5;
+  --color-surface-4: #f2efe8;
+  --color-surface-code: #fcfbf7;
+  --color-surface-code-bar: #f6f4ee;
+  --color-surface-code-gutter: #f8f6f0;
+
+  /* Lean 4 syntax token colors (highlighter in lean-code.tsx). */
+  --color-lean-comment: #78876a;
+  --color-lean-green: #14653c;
+  --color-lean-keyword: #1f3a6e;
+  --color-lean-gold: #8a5f13;
+  --color-lean-purple: #6b4fa8;
+}
+
+/* ===== Dark theme: override the semantic tokens on <html class="dark"> ===== */
+html.dark {
+  --color-paper: #0f1115;
+  --color-card: #171a1f;
+  --color-ink: #e9e7e2;
+  --color-ink-muted: #a7a39a;
+  --color-ink-faint: #6f6b63;
+  --color-rule: #262a31;
+  --color-rule-strong: #353b44;
+
+  --color-accent: #7ea2dd;
+  --color-accent-hover: #9dbcf0;
+  --color-accent-soft: #1a2233;
+
+  --color-gold: #d8b265;
+  --color-gold-soft: #2a2316;
+
+  --color-verify: #5fbf86;
+  --color-verify-soft: #14271c;
+
+  --color-fail: #e08a8a;
+  --color-fail-soft: #2c1717;
+
+  --color-pending: #d2a64e;
+  --color-pending-soft: #2a2113;
+
+  --color-surface-2: #181c22;
+  --color-surface-3: #20242c;
+  --color-surface-4: #22262e;
+  --color-surface-code: #11141a;
+  --color-surface-code-bar: #161a20;
+  --color-surface-code-gutter: #13161c;
+
+  --color-lean-comment: #8a9b7a;
+  --color-lean-green: #5fbf86;
+  --color-lean-keyword: #7ea2dd;
+  --color-lean-gold: #d8b265;
+  --color-lean-purple: #b79be0;
+
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-serif);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background: var(--color-accent-soft);
+  }
+}
+
+@layer components {
+  .prose-doc {
+    font-size: 15px;
+    line-height: 1.75;
+    color: var(--color-ink);
+  }
+  .prose-doc h1 {
+    font-size: 1.6rem;
+    margin: 1.6em 0 0.6em;
+  }
+  .prose-doc h2 {
+    font-size: 1.3rem;
+    margin: 1.5em 0 0.5em;
+    padding-bottom: 0.25em;
+    border-bottom: 1px solid var(--color-rule);
+  }
+  .prose-doc h3 {
+    font-size: 1.1rem;
+    margin: 1.3em 0 0.4em;
+  }
+  .prose-doc p {
+    margin: 0.85em 0;
+  }
+  .prose-doc a {
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .prose-doc ul,
+  .prose-doc ol {
+    margin: 0.85em 0;
+    padding-left: 1.4em;
+  }
+  .prose-doc ul {
+    list-style: disc;
+  }
+  .prose-doc ol {
+    list-style: decimal;
+  }
+  .prose-doc li {
+    margin: 0.3em 0;
+  }
+  .prose-doc code {
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    background: var(--color-surface-3);
+    border: 1px solid var(--color-rule);
+    border-radius: 4px;
+    padding: 0.1em 0.35em;
+  }
+  .prose-doc pre {
+    font-family: var(--font-mono);
+    font-size: 0.84em;
+    background: var(--color-surface-code);
+    border: 1px solid var(--color-rule);
+    border-radius: 8px;
+    padding: 0.9em 1em;
+    overflow-x: auto;
+    margin: 1em 0;
+  }
+  .prose-doc pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 1em;
+  }
+  .prose-doc blockquote {
+    border-left: 3px solid var(--color-rule-strong);
+    padding-left: 1em;
+    color: var(--color-ink-muted);
+    margin: 1em 0;
+  }
+  .prose-doc table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1em 0;
+    font-size: 0.93em;
+  }
+  .prose-doc th,
+  .prose-doc td {
+    border: 1px solid var(--color-rule);
+    padding: 0.45em 0.7em;
+    text-align: left;
+  }
+  .prose-doc th {
+    background: var(--color-surface-2);
+    font-weight: 500;
+  }
+  .prose-doc hr {
+    border: none;
+    border-top: 1px solid var(--color-rule);
+    margin: 1.8em 0;
+  }
+}
+
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.2em 0;
+}
