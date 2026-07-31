@@ -13,7 +13,6 @@
     "openInGitHub": "Open in GitHub",
     "copy": "Copy",
     "copied": "Copied",
-    "mockBanner": "Preview build — all data is mocked, nothing is persisted.",
     "noTranslation": "This content is not available in your language yet. Showing the original."
   },
   "nav": {
@@ -189,8 +188,7 @@
     "signInPrompt": "Sign in with GitHub to view your profile, submissions and points."
   },
   "footer": {
-    "builtWith": "Verification powered by the Lean comparator.",
-    "phase": "Phase 1 preview — frontend skeleton with mock data."
+    "builtWith": "Verification powered by the Lean comparator."
   },
   "theme": {
     "toggle": "Toggle light / dark theme"

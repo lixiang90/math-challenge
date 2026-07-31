@@ -13,7 +13,6 @@
     "openInGitHub": "在 GitHub 中打开",
     "copy": "复制",
     "copied": "已复制",
-    "mockBanner": "预览版本 — 全部为假数据，不会保存任何内容。",
     "noTranslation": "该内容暂无中文版本，以下显示原文。"
   },
   "nav": {
@@ -189,8 +188,7 @@
     "signInPrompt": "使用 GitHub 登录以查看你的个人资料、提交记录与积分。"
   },
   "footer": {
-    "builtWith": "验证由 Lean comparator 提供。",
-    "phase": "第一期预览 —— 前端骨架 + 假数据。"
+    "builtWith": "验证由 Lean comparator 提供。"
   },
   "theme": {
     "toggle": "切换明亮 / 暗黑主题"

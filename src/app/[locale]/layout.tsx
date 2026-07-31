@@ -37,7 +37,6 @@ export default async function LocaleLayout({
   setRequestLocale(locale);
 
   const t = await getTranslations({ locale, namespace: "footer" });
-  const tc = await getTranslations({ locale, namespace: "common" });
 
   return (
     <html lang={locale} suppressHydrationWarning>
@@ -53,9 +52,6 @@ export default async function LocaleLayout({
         <NextIntlClientProvider>
           <SessionProvider>
             <div className="flex min-h-screen flex-col">
-              <div className="bg-accent-soft px-4 py-1.5 text-center text-[12px] text-accent">
-                {tc("mockBanner")}
-              </div>
               <SiteHeader />
               <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
                 {children}
@@ -63,7 +59,6 @@ export default async function LocaleLayout({
               <footer className="border-t border-rule px-4 py-6 sm:px-6">
                 <div className="mx-auto flex max-w-6xl flex-col gap-1 text-[12px] text-ink-faint sm:flex-row sm:justify-between">
                   <span>{t("builtWith")}</span>
-                  <span>{t("phase")}</span>
                 </div>
               </footer>
             </div>
