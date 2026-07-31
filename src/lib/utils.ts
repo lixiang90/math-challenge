@@ -45,3 +45,42 @@ export function slugify(input: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 64) || "project";
 }
+
+const GITHUB_REPO_RE =
+  /^https:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?(?:\/.*)?$/i;
+const SHA40_RE = /^[0-9a-f]{40}$/i;
+
+/** Build the most useful GitHub link for a project.
+ *  - Normal projects link to the repo homepage.
+ *  - Challenge projects link to the pinned commit/branch + optional sync_path.
+ */
+export function githubRepoUrl(params: {
+  repoUrl: string;
+  type: "normal" | "challenge";
+  defaultBranch?: string | null;
+  syncBranch?: string | null;
+  syncCommit?: string | null;
+  syncPath?: string | null;
+}): string {
+  const match = params.repoUrl.match(GITHUB_REPO_RE);
+  if (!match) return params.repoUrl;
+
+  const [, owner, repo] = match;
+  const base = `https://github.com/${owner}/${repo}`;
+
+  if (params.type !== "challenge") return base;
+
+  const commit = params.syncCommit?.trim();
+  const branch = params.syncBranch?.trim() || params.defaultBranch?.trim();
+  const path = params.syncPath?.trim();
+
+  if (commit && SHA40_RE.test(commit)) {
+    return path ? `${base}/tree/${commit}/${path}` : `${base}/tree/${commit}`;
+  }
+
+  if (branch) {
+    return path ? `${base}/tree/${branch}/${path}` : `${base}/tree/${branch}`;
+  }
+
+  return base;
+}

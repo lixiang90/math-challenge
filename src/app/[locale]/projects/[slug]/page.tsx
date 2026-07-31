@@ -12,7 +12,7 @@ import { getProjectBySlug, useMock } from "@/lib/mock/db";
 import { createClient } from "@/lib/supabase/server";
 import { resolveText } from "@/lib/i18n-content";
 import type { AppLocale } from "@/lib/types";
-import { formatDate } from "@/lib/utils";
+import { formatDate, githubRepoUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +67,15 @@ export default async function ProjectPage({
     { label: t("created"), value: formatDate(project.created_at, locale) },
     { label: t("updated"), value: formatDate(project.updated_at, locale) },
   ];
+
+  const repoLink = githubRepoUrl({
+    repoUrl: project.repo_url,
+    type: project.type,
+    defaultBranch: project.default_branch,
+    syncBranch: project.sync_branch,
+    syncCommit: project.sync_commit,
+    syncPath: project.sync_path,
+  });
 
   return (
     <div className="space-y-8">
@@ -182,7 +191,7 @@ export default async function ProjectPage({
           </div>
 
           <a
-            href={project.repo_url}
+            href={repoLink}
             target="_blank"
             rel="noreferrer noopener"
             className="flex items-center gap-2 rounded-xl border border-rule bg-card px-5 py-3 text-[13px] transition-colors hover:border-accent hover:text-accent"
