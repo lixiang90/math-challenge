@@ -21,7 +21,7 @@ import * as mock from "./fallback";
  * identical in both modes, so pages/components do not need to change.
  */
 
-function useMock(): boolean {
+export function useMock(): boolean {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.toLowerCase();
   return !url || url.includes("your-project-ref") || url.includes("example.com");
 }
@@ -373,7 +373,7 @@ export async function getProfileStats(userId: string) {
 
   const supabase = await createClient();
   const [profileRes, subsRes, projectsRes, ledgerRes] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", userId).single(),
+    supabase.from("profiles").select("*").eq("id", userId).maybeSingle(),
     supabase
       .from("submissions")
       .select("status,problem_id")
@@ -383,7 +383,7 @@ export async function getProfileStats(userId: string) {
   ]);
 
   if (profileRes.error) throw profileRes.error;
-  const profile = profileRes.data as Profile;
+  const profile = (profileRes.data as Profile | null) ?? null;
   const subs = (subsRes.data ?? []) as Pick<Submission, "status" | "problem_id">[];
   const solved = new Set(
     subs.filter((s) => s.status === "passed").map((s) => s.problem_id)

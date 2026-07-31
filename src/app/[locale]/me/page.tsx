@@ -5,8 +5,19 @@ import {
   getProfileStats,
   listProjectsByOwner,
   listSubmissionsForUser,
+  useMock,
 } from "@/lib/mock/db";
-import { DEMO_USER_ID } from "@/lib/mock/profiles";
+import { createClient } from "@/lib/supabase/server";
+
+// Reads the per-request auth session, so this must render on demand.
+export const dynamic = "force-dynamic";
+
+const EMPTY_STATS = {
+  points: 0,
+  solved_count: 0,
+  submission_count: 0,
+  project_count: 0,
+};
 
 export default async function MePage({
   params,
@@ -16,11 +27,33 @@ export default async function MePage({
   const { locale } = await params;
   setRequestLocale(locale);
 
+  // Resolve the signed-in user from the server session.
+  let userId: string | null = null;
+  if (!useMock()) {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    userId = user?.id ?? null;
+  }
+
+  // Not signed in (or no real backend configured): render the sign-in prompt.
+  if (!userId) {
+    return (
+      <ProfileView
+        stats={EMPTY_STATS}
+        submissions={[]}
+        projects={[]}
+        ledger={[]}
+      />
+    );
+  }
+
   const [stats, submissions, projects, ledger] = await Promise.all([
-    getProfileStats(DEMO_USER_ID),
-    listSubmissionsForUser(DEMO_USER_ID),
-    listProjectsByOwner(DEMO_USER_ID),
-    getPointsLedger(DEMO_USER_ID),
+    getProfileStats(userId),
+    listSubmissionsForUser(userId),
+    listProjectsByOwner(userId),
+    getPointsLedger(userId),
   ]);
 
   return (
