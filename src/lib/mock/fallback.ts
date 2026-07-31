@@ -6,14 +6,22 @@ import type {
   ProjectDetail,
   ProjectDraft,
   ProjectListItem,
+  ProjectMaintainer,
   Submission,
   SubmissionWithContext,
 } from "@/lib/types";
-import { slugify } from "@/lib/utils";
+import { parseGithubOwner, slugify } from "@/lib/utils";
 import { profiles, profileById } from "./profiles";
 import { projects } from "./projects";
 import { problems } from "./problems";
 import { pointsLedger, submissions } from "./submissions";
+
+/** In-memory project_members for mock mode (mirrors supabase.project_members). */
+const projectMembers: {
+  project_id: string;
+  user_id: string;
+  role: string;
+}[] = [];
 
 /**
  * Phase-1 mock data layer, kept as the local fallback when the real
@@ -240,12 +248,11 @@ export async function createProject(
 
 export async function updateProject(
   slug: string,
-  _ownerId: string,
   draft: ProjectDraft
 ): Promise<Project> {
   const idx = projects.findIndex((p) => p.slug === slug);
   if (idx === -1) {
-    return createProject(draft, _ownerId);
+    return createProject(draft, "u_ai");
   }
   const existing = projects[idx];
   const updated: Project = {
@@ -265,6 +272,58 @@ export async function updateProject(
   };
   projects[idx] = updated;
   return updated;
+}
+
+export async function getProjectAccess(
+  slug: string,
+  userId: string
+): Promise<{ isOwner: boolean; isMaintainer: boolean; canClaim: boolean }> {
+  const project = projects.find((p) => p.slug === slug);
+  if (!project) return { isOwner: false, isMaintainer: false, canClaim: false };
+  const isOwner = project.owner_id === userId;
+  const isMaintainer = projectMembers.some(
+    (m) => m.project_id === project.id && m.user_id === userId
+  );
+  let canClaim = false;
+  if (!isOwner && !isMaintainer) {
+    const login = profileById(userId)?.github_login?.toLowerCase() ?? null;
+    const repoOwner = parseGithubOwner(project.repo_url);
+    canClaim = !!login && !!repoOwner && login === repoOwner;
+  }
+  return { isOwner, isMaintainer, canClaim };
+}
+
+export async function listMaintainers(
+  projectId: string
+): Promise<ProjectMaintainer[]> {
+  return projectMembers
+    .filter((m) => m.project_id === projectId)
+    .map((m) => {
+      const p = profileById(m.user_id);
+      return {
+        user_id: m.user_id,
+        github_login: p?.github_login ?? "unknown",
+        display_name: p?.display_name ?? "Unknown",
+      };
+    });
+}
+
+export async function claimProject(
+  slug: string,
+  userId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const project = projects.find((p) => p.slug === slug && p.status === "published");
+  if (!project) return { ok: false, error: "not_found" };
+  if (project.owner_id === userId) return { ok: true };
+  const login = profileById(userId)?.github_login?.toLowerCase() ?? null;
+  const repoOwner = parseGithubOwner(project.repo_url);
+  if (!login || !repoOwner || login !== repoOwner) {
+    return { ok: false, error: "not_owner" };
+  }
+  if (!projectMembers.some((m) => m.project_id === project.id && m.user_id === userId)) {
+    projectMembers.push({ project_id: project.id, user_id: userId, role: "maintainer" });
+  }
+  return { ok: true };
 }
 
 function uniqueSlug(base: string): string {

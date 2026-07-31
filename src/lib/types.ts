@@ -61,6 +61,13 @@ export interface Project {
   file_tree?: FileNode[];
 }
 
+/** A user granted edit/maintain rights on a project via claim (besides owner). */
+export interface ProjectMaintainer {
+  user_id: string;
+  github_login: string;
+  display_name: string;
+}
+
 export interface FileNode {
   name: string;
   type: "dir" | "file";

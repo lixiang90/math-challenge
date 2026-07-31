@@ -69,6 +69,16 @@ export function parseGithubTreeUrl(url: string): {
   return { base: `https://github.com/${owner}/${repo}`, ref, path };
 }
 
+const GITHUB_OWNER_RE = /^https:\/\/github\.com\/([^/]+)\//i;
+
+/** Extract the GitHub repository owner (the `{owner}` segment) from a repo URL.
+ *  Case-insensitive; used by the claim flow to verify the logged-in user owns
+ *  the repository. Returns null for non-GitHub or malformed URLs. */
+export function parseGithubOwner(repoUrl: string): string | null {
+  const m = repoUrl.match(GITHUB_OWNER_RE);
+  return m ? m[1].toLowerCase() : null;
+}
+
 /** Build the most useful GitHub link for a project.
  *  - Normal projects link to the repo homepage.
  *  - Challenge projects link to the pinned commit/branch + optional sync_path.

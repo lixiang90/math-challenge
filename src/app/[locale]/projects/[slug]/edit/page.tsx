@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { ProjectForm } from "@/components/project-form";
 import { createClient } from "@/lib/supabase/server";
-import { getProjectBySlug } from "@/lib/mock/db";
+import { getProjectAccess, getProjectBySlug } from "@/lib/mock/db";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +23,11 @@ export default async function EditProjectPage({
 
   const project = await getProjectBySlug(slug);
   if (!project) notFound();
-  if (project.owner_id !== user.id) redirect(`/${locale}/projects/${slug}`);
+
+  const access = await getProjectAccess(slug, user.id);
+  if (!access.isOwner && !access.isMaintainer) {
+    redirect(`/${locale}/projects/${slug}`);
+  }
 
   return (
     <div className="mx-auto max-w-2xl space-y-8">

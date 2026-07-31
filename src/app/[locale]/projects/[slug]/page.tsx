@@ -8,10 +8,16 @@ import { FileTree } from "@/components/file-tree";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Section } from "@/components/ui/card";
-import { getProjectBySlug, useMock } from "@/lib/mock/db";
+import { ClaimButton } from "@/components/claim-button";
+import {
+  getProjectAccess,
+  getProjectBySlug,
+  listMaintainers,
+  useMock,
+} from "@/lib/mock/db";
 import { createClient } from "@/lib/supabase/server";
 import { resolveText } from "@/lib/i18n-content";
-import type { AppLocale } from "@/lib/types";
+import type { AppLocale, ProjectMaintainer } from "@/lib/types";
 import { formatDate, githubRepoUrl } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -43,18 +49,26 @@ export default async function ProjectPage({
   if (!project) notFound();
 
   let canEdit = false;
+  let canClaim = false;
+  let maintainers: ProjectMaintainer[] = [];
   if (!useMock()) {
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    canEdit = !!user && user.id === project.owner_id;
+    if (user) {
+      const access = await getProjectAccess(slug, user.id);
+      canEdit = access.isOwner || access.isMaintainer;
+      canClaim = access.canClaim;
+    }
+    maintainers = await listMaintainers(project.id);
   }
 
   const t = await getTranslations("project");
   const tc = await getTranslations("common");
   const tn = await getTranslations("nav");
   const tp = await getTranslations("projectType");
+  const tclaim = await getTranslations("claim");
 
   const title = resolveText(project.title, loc);
   const summary = resolveText(project.summary, loc);
@@ -210,6 +224,21 @@ export default async function ProjectPage({
                 {tn("editProject")}
               </Link>
             </Button>
+          )}
+
+          {canClaim && <ClaimButton slug={project.slug} locale={locale} />}
+
+          {maintainers.length > 0 && (
+            <div className="rounded-xl border border-rule bg-card px-5 py-4">
+              <h2 className="mb-2 font-serif text-[15px]">{tclaim("title")}</h2>
+              <ul className="space-y-1.5 text-[13px] text-ink-muted">
+                {maintainers.map((m) => (
+                  <li key={m.user_id} className="font-mono">
+                    @{m.github_login}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
 
           <div className="rounded-xl border border-rule bg-card px-5 py-4">

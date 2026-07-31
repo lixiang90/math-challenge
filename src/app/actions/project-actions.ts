@@ -2,7 +2,12 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createProject, updateProject } from "@/lib/mock/db";
+import {
+  claimProject,
+  createProject,
+  getProjectAccess,
+  updateProject,
+} from "@/lib/mock/db";
 import { parseGithubTreeUrl } from "@/lib/utils";
 import type {
   Difficulty,
@@ -17,6 +22,11 @@ export interface ProjectFormState {
   error?: string;
   /** Field name -> error key under `projectForm.errors`. */
   fieldErrors?: Record<string, string>;
+}
+
+export interface ClaimState {
+  ok: boolean;
+  error?: string;
 }
 
 const DIFFICULTIES: Difficulty[] = [
@@ -166,14 +176,43 @@ export async function updateProjectAction(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "auth" };
 
+  // Only the owner or a claimed maintainer may edit.
+  const access = await getProjectAccess(slug, user.id);
+  if (!access.isOwner && !access.isMaintainer) {
+    return { ok: false, error: "permissionDenied" };
+  }
+
   const parsed = parseDraft(formData);
   if ("fieldErrors" in parsed) return { ok: false, fieldErrors: parsed.fieldErrors };
 
   try {
-    await updateProject(slug, user.id, parsed.draft);
+    await updateProject(slug, parsed.draft);
   } catch (e) {
     console.error("[updateProjectAction] failed to update project:", e);
     return { ok: false, error: classifyError(e) };
+  }
+
+  const locale = (formData.get("locale") as string | null) || "en";
+  redirect(`/${locale}/projects/${slug}`);
+}
+
+export async function claimProjectAction(
+  _prev: ClaimState,
+  formData: FormData
+): Promise<ClaimState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "auth" };
+
+  const slug = (formData.get("slug") as string | null)?.trim() ?? "";
+  if (!slug) return { ok: false, error: "not_found" };
+
+  const result = await claimProject(slug, user.id);
+  if (!result.ok) {
+    console.error("[claimProjectAction] claim failed:", result.error);
+    return { ok: false, error: result.error };
   }
 
   const locale = (formData.get("locale") as string | null) || "en";

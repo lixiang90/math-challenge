@@ -8,10 +8,11 @@ import type {
   ProjectDetail,
   ProjectDraft,
   ProjectListItem,
+  ProjectMaintainer,
   Submission,
   SubmissionWithContext,
 } from "@/lib/types";
-import { slugify } from "@/lib/utils";
+import { parseGithubOwner, slugify } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/server";
 import * as mock from "./fallback";
 
@@ -536,10 +537,9 @@ export async function createProject(
 
 export async function updateProject(
   slug: string,
-  ownerId: string,
   draft: ProjectDraft
 ): Promise<Project> {
-  if (useMock()) return mock.updateProject(slug, ownerId, draft);
+  if (useMock()) return mock.updateProject(slug, draft);
 
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -556,10 +556,116 @@ export async function updateProject(
       ...challengeSyncCols(draft),
     })
     .eq("slug", slug)
-    .eq("owner_id", ownerId)
     .select("*")
     .single();
 
   if (error) throw error;
   return data as Project;
+}
+
+/** Compute the current user's relationship to a project for edit/claim UI. */
+export async function getProjectAccess(
+  slug: string,
+  userId: string | null
+): Promise<{ isOwner: boolean; isMaintainer: boolean; canClaim: boolean }> {
+  if (!userId) return { isOwner: false, isMaintainer: false, canClaim: false };
+  if (useMock()) return mock.getProjectAccess(slug, userId);
+
+  const supabase = await createClient();
+  const { data: project } = await supabase
+    .from("projects")
+    .select("id, repo_url, owner_id")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (!project) return { isOwner: false, isMaintainer: false, canClaim: false };
+
+  const isOwner = project.owner_id === userId;
+  let isMaintainer = false;
+  if (!isOwner) {
+    const { count } = await supabase
+      .from("project_members")
+      .select("*", { count: "exact", head: true })
+      .eq("project_id", project.id)
+      .eq("user_id", userId);
+    isMaintainer = (count ?? 0) > 0;
+  }
+
+  let canClaim = false;
+  if (!isOwner && !isMaintainer) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("github_login")
+      .eq("id", userId)
+      .maybeSingle();
+    const login = profile?.github_login?.toLowerCase() ?? null;
+    const repoOwner = parseGithubOwner(project.repo_url);
+    canClaim = !!login && !!repoOwner && login === repoOwner;
+  }
+
+  return { isOwner, isMaintainer, canClaim };
+}
+
+/** List the maintainers (besides the owner) of a project. */
+export async function listMaintainers(
+  projectId: string
+): Promise<ProjectMaintainer[]> {
+  if (useMock()) return mock.listMaintainers(projectId);
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("project_members")
+    .select("user_id, profiles(github_login, display_name)")
+    .eq("project_id", projectId);
+  if (error) throw error;
+  type Row = {
+    user_id: string;
+    profiles:
+      | { github_login: string; display_name: string }[]
+      | { github_login: string; display_name: string }
+      | null;
+  };
+  return (data ?? []).map((row: Row) => {
+    const p = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
+    return {
+      user_id: row.user_id,
+      github_login: p?.github_login ?? "unknown",
+      display_name: p?.display_name ?? "Unknown",
+    };
+  });
+}
+
+/** Claim a project: verify the caller's GitHub login owns the repo, then add
+ *  them as a maintainer. Owners are already editors, so this is a no-op for them. */
+export async function claimProject(
+  slug: string,
+  userId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (useMock()) return mock.claimProject(slug, userId);
+
+  const supabase = await createClient();
+  const { data: project } = await supabase
+    .from("projects")
+    .select("id, repo_url, owner_id")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (!project) return { ok: false, error: "not_found" };
+  if (project.owner_id === userId) return { ok: true };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("github_login")
+    .eq("id", userId)
+    .maybeSingle();
+  const login = profile?.github_login?.toLowerCase() ?? null;
+  const repoOwner = parseGithubOwner(project.repo_url);
+  if (!login || !repoOwner || login !== repoOwner) {
+    return { ok: false, error: "not_owner" };
+  }
+
+  const { error } = await supabase.from("project_members").upsert(
+    { project_id: project.id, user_id: userId, role: "maintainer" },
+    { onConflict: "project_id,user_id" }
+  );
+  if (error) return { ok: false, error: "db" };
+  return { ok: true };
 }

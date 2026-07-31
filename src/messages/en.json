@@ -235,5 +235,18 @@
       "duplicate": "A project with this URL already exists; try a different title.",
       "generic": "Something went wrong. Please try again."
     }
+  },
+  "claim": {
+    "button": "Claim this project",
+    "claiming": "Claiming…",
+    "title": "Maintainers",
+    "you": "You",
+    "errors": {
+      "auth": "You must sign in to claim a project.",
+      "not_found": "Project not found.",
+      "not_owner": "Only the GitHub owner of this repository can claim it.",
+      "db": "Could not save the claim. Please try again.",
+      "generic": "Something went wrong. Please try again."
+    }
   }
 }
