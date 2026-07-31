@@ -1,0 +1,160 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { createProject, updateProject } from "@/lib/mock/db";
+import type {
+  Difficulty,
+  I18nText,
+  ProjectDraft,
+  ProjectType,
+} from "@/lib/types";
+
+export interface ProjectFormState {
+  ok: boolean;
+  /** Global error key under `projectForm.errors`. */
+  error?: string;
+  /** Field name -> error key under `projectForm.errors`. */
+  fieldErrors?: Record<string, string>;
+}
+
+const DIFFICULTIES: Difficulty[] = [
+  "intro",
+  "easy",
+  "medium",
+  "hard",
+  "research",
+];
+
+function parseDraft(formData: FormData):
+  | { draft: ProjectDraft }
+  | { fieldErrors: Record<string, string> } {
+  const type: ProjectType =
+    formData.get("type") === "challenge" ? "challenge" : "normal";
+  const titleEn = (formData.get("titleEn") as string | null)?.trim() ?? "";
+  const titleZh = (formData.get("titleZh") as string | null)?.trim() || undefined;
+  const summaryEn = (formData.get("summaryEn") as string | null)?.trim() ?? "";
+  const summaryZh =
+    (formData.get("summaryZh") as string | null)?.trim() || undefined;
+  const descriptionEn =
+    (formData.get("descriptionEn") as string | null)?.trim() ?? "";
+  const repoUrl = (formData.get("repoUrl") as string | null)?.trim() ?? "";
+  const defaultBranch =
+    (formData.get("defaultBranch") as string | null)?.trim() || "main";
+  const difficultyRaw = formData.get("difficulty") as Difficulty | null;
+  const difficulty: Difficulty = DIFFICULTIES.includes(difficultyRaw as Difficulty)
+    ? (difficultyRaw as Difficulty)
+    : "intro";
+  const tagsRaw = (formData.get("tags") as string | null)?.trim() ?? "";
+  const tags = tagsRaw
+    ? tagsRaw
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean)
+    : [];
+
+  const fieldErrors: Record<string, string> = {};
+  if (!titleEn) fieldErrors.titleEn = "titleEn";
+  if (!repoUrl) fieldErrors.repoUrl = "repoUrl";
+  else {
+    try {
+      const u = new URL(repoUrl);
+      if (u.protocol !== "https:" || !u.hostname || u.hostname === "example.com") {
+        fieldErrors.repoUrl = "repoUrlFormat";
+      }
+    } catch {
+      fieldErrors.repoUrl = "repoUrlFormat";
+    }
+  }
+
+  let sync_commit: string | null = null;
+  let sync_branch: string | null = null;
+  let sync_path: string | null = null;
+  if (type === "challenge") {
+    const commit = (formData.get("syncCommit") as string | null)?.trim() ?? "";
+    const branch = (formData.get("syncBranch") as string | null)?.trim() ?? "";
+    const path = (formData.get("syncPath") as string | null)?.trim() ?? "";
+    if (commit) {
+      if (!/^[0-9a-f]{40}$/i.test(commit)) fieldErrors.syncCommit = "commitFormat";
+      else sync_commit = commit;
+    }
+    if (branch) sync_branch = branch;
+    if (path) {
+      if (path.startsWith("/") || path.includes("..") || !path.trim()) {
+        fieldErrors.syncPath = "pathFormat";
+      } else sync_path = path;
+    }
+  }
+
+  if (Object.keys(fieldErrors).length > 0) return { fieldErrors };
+
+  const title: I18nText = titleZh ? { en: titleEn, zh: titleZh } : { en: titleEn };
+  const summary: I18nText = summaryZh
+    ? { en: summaryEn, zh: summaryZh }
+    : { en: summaryEn };
+  const description: I18nText = descriptionEn ? { en: descriptionEn } : { en: "" };
+
+  return {
+    draft: {
+      type,
+      title,
+      summary,
+      description,
+      repo_url: repoUrl,
+      default_branch: defaultBranch,
+      sync_commit,
+      sync_branch,
+      sync_path,
+      difficulty,
+      tags,
+    },
+  };
+}
+
+export async function createProjectAction(
+  _prev: ProjectFormState,
+  formData: FormData
+): Promise<ProjectFormState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "auth" };
+
+  const parsed = parseDraft(formData);
+  if ("fieldErrors" in parsed) return { ok: false, fieldErrors: parsed.fieldErrors };
+
+  try {
+    const project = await createProject(parsed.draft, user.id);
+    const locale = (formData.get("locale") as string | null) || "en";
+    redirect(`/${locale}/projects/${project.slug}`);
+  } catch {
+    return { ok: false, error: "generic" };
+  }
+  // redirect() throws, so this is unreachable.
+  return { ok: false, error: "generic" };
+}
+
+export async function updateProjectAction(
+  slug: string,
+  _prev: ProjectFormState,
+  formData: FormData
+): Promise<ProjectFormState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "auth" };
+
+  const parsed = parseDraft(formData);
+  if ("fieldErrors" in parsed) return { ok: false, fieldErrors: parsed.fieldErrors };
+
+  try {
+    await updateProject(slug, user.id, parsed.draft);
+    const locale = (formData.get("locale") as string | null) || "en";
+    redirect(`/${locale}/projects/${slug}`);
+  } catch {
+    return { ok: false, error: "generic" };
+  }
+  return { ok: false, error: "generic" };
+}

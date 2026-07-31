@@ -1,16 +1,20 @@
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { ArrowLeft, ExternalLink, GitBranch, Trophy, Users } from "lucide-react";
+import { ArrowLeft, ExternalLink, GitBranch, Pencil, Trophy, Users } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import { DifficultyBadge, FallbackNotice, TypeBadge } from "@/components/badges";
 import { Markdown, RichText } from "@/components/markdown";
 import { FileTree } from "@/components/file-tree";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Section } from "@/components/ui/card";
-import { getProjectBySlug } from "@/lib/mock/db";
+import { getProjectBySlug, useMock } from "@/lib/mock/db";
+import { createClient } from "@/lib/supabase/server";
 import { resolveText } from "@/lib/i18n-content";
 import type { AppLocale } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
+
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -37,6 +41,15 @@ export default async function ProjectPage({
 
   const project = await getProjectBySlug(slug);
   if (!project) notFound();
+
+  let canEdit = false;
+  if (!useMock()) {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    canEdit = !!user && user.id === project.owner_id;
+  }
 
   const t = await getTranslations("project");
   const tc = await getTranslations("common");
@@ -180,6 +193,15 @@ export default async function ProjectPage({
             </span>
             <ExternalLink className="size-3.5 shrink-0" />
           </a>
+
+          {canEdit && (
+            <Button asChild variant="outline" className="w-full">
+              <Link href={`/projects/${project.slug}/edit`}>
+                <Pencil className="size-3.5" />
+                {tn("editProject")}
+              </Link>
+            </Button>
+          )}
 
           <div className="rounded-xl border border-rule bg-card px-5 py-4">
             <h2 className="mb-2 font-serif text-[15px]">{t("tags")}</h2>

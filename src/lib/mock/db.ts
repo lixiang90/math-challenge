@@ -6,10 +6,12 @@ import type {
   Profile,
   Project,
   ProjectDetail,
+  ProjectDraft,
   ProjectListItem,
   Submission,
   SubmissionWithContext,
 } from "@/lib/types";
+import { slugify } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/server";
 import * as mock from "./fallback";
 
@@ -470,4 +472,86 @@ export async function getSiteStats() {
     solvers: solvers.size,
     points,
   };
+}
+
+function challengeSyncCols(draft: ProjectDraft) {
+  return draft.type === "challenge"
+    ? {
+        sync_commit: draft.sync_commit || null,
+        sync_branch: draft.sync_branch || null,
+        sync_path: draft.sync_path || null,
+      }
+    : { sync_commit: null, sync_branch: null, sync_path: null };
+}
+
+export async function createProject(
+  draft: ProjectDraft,
+  ownerId: string
+): Promise<Project> {
+  if (useMock()) return mock.createProject(draft, ownerId);
+
+  const supabase = await createClient();
+  const baseSlug = slugify(draft.title.en);
+  let slug = baseSlug;
+  for (let i = 1; i <= 20; i++) {
+    const { data } = await supabase
+      .from("projects")
+      .select("slug")
+      .eq("slug", slug)
+      .maybeSingle();
+    if (!data) break;
+    slug = `${baseSlug}-${i}`;
+  }
+
+  const { data, error } = await supabase
+    .from("projects")
+    .insert({
+      slug,
+      owner_id: ownerId,
+      type: draft.type,
+      title: draft.title,
+      summary: draft.summary,
+      description: draft.description,
+      repo_url: draft.repo_url,
+      default_branch: draft.default_branch || "main",
+      difficulty: draft.difficulty,
+      tags: draft.tags,
+      status: "published",
+      ...challengeSyncCols(draft),
+    })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data as Project;
+}
+
+export async function updateProject(
+  slug: string,
+  ownerId: string,
+  draft: ProjectDraft
+): Promise<Project> {
+  if (useMock()) return mock.updateProject(slug, ownerId, draft);
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("projects")
+    .update({
+      type: draft.type,
+      title: draft.title,
+      summary: draft.summary,
+      description: draft.description,
+      repo_url: draft.repo_url,
+      default_branch: draft.default_branch || "main",
+      difficulty: draft.difficulty,
+      tags: draft.tags,
+      ...challengeSyncCols(draft),
+    })
+    .eq("slug", slug)
+    .eq("owner_id", ownerId)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data as Project;
 }

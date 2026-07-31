@@ -44,6 +44,12 @@ export interface Project {
   description: I18nText;
   repo_url: string;
   default_branch: string;
+  /** Challenge only: pin the synced commit; null = latest at sync time. */
+  sync_commit?: string | null;
+  /** Challenge only: branch to sync from; null = use `default_branch`. */
+  sync_branch?: string | null;
+  /** Challenge only: relative path inside the repo; null = repo root. */
+  sync_path?: string | null;
   difficulty: Difficulty;
   tags: string[];
   status: ProjectStatus;
@@ -123,6 +129,22 @@ export interface PointsLedgerEntry {
   reason_key: "reasonFirstSolve";
   reason_params: Record<string, string>;
   created_at: string;
+}
+
+/** Sanitized payload accepted by the project create/update data-layer calls. */
+export interface ProjectDraft {
+  type: ProjectType;
+  title: I18nText;
+  summary: I18nText;
+  description: I18nText;
+  repo_url: string;
+  default_branch: string;
+  /** Challenge only; ignored for normal projects. */
+  sync_commit?: string | null;
+  sync_branch?: string | null;
+  sync_path?: string | null;
+  difficulty: Difficulty;
+  tags: string[];
 }
 
 /* ---------- Derived view models returned by the data layer ---------- */

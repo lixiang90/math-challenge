@@ -34,3 +34,14 @@ export function formatDuration(seconds: number | null) {
 export function shortSha(sha: string) {
   return sha.slice(0, 7);
 }
+
+/** Convert a human title into a URL-safe slug. Keeps unicode letters/numbers. */
+export function slugify(input: string): string {
+  return input
+    .normalize("NFKD")
+    .toLowerCase()
+    .trim()
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64) || "project";
+}

@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Github, LogOut, User } from "lucide-react";
+import { Github, LogOut, Plus, User } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import { useSession } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
@@ -72,6 +72,15 @@ export function UserMenu() {
             >
               <User className="size-3.5" />
               {t("profile")}
+            </Link>
+          </DropdownMenu.Item>
+          <DropdownMenu.Item asChild>
+            <Link
+              href="/projects/new"
+              className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none data-[highlighted]:bg-accent-soft"
+            >
+              <Plus className="size-3.5" />
+              {t("newProject")}
             </Link>
           </DropdownMenu.Item>
           <DropdownMenu.Separator className="my-1 h-px bg-rule" />

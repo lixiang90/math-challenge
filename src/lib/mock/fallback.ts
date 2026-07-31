@@ -2,11 +2,14 @@ import type {
   LeaderboardRow,
   ProblemDetail,
   ProblemListItem,
+  Project,
   ProjectDetail,
+  ProjectDraft,
   ProjectListItem,
   Submission,
   SubmissionWithContext,
 } from "@/lib/types";
+import { slugify } from "@/lib/utils";
 import { profiles, profileById } from "./profiles";
 import { projects } from "./projects";
 import { problems } from "./problems";
@@ -204,4 +207,71 @@ export async function getSiteStats() {
     solvers: solvers.size,
     points: pointsLedger.reduce((sum, e) => sum + e.delta, 0),
   };
+}
+
+export async function createProject(
+  draft: ProjectDraft,
+  ownerId: string
+): Promise<Project> {
+  const slug = uniqueSlug(slugify(draft.title.en));
+  const now = new Date().toISOString();
+  const project: Project = {
+    id: `mock_${slug}`,
+    slug,
+    owner_id: ownerId,
+    type: draft.type,
+    title: draft.title,
+    summary: draft.summary,
+    description: draft.description,
+    repo_url: draft.repo_url,
+    default_branch: draft.default_branch || "main",
+    sync_commit: draft.sync_commit ?? null,
+    sync_branch: draft.sync_branch ?? null,
+    sync_path: draft.sync_path ?? null,
+    difficulty: draft.difficulty,
+    tags: draft.tags,
+    status: "published",
+    created_at: now,
+    updated_at: now,
+  };
+  projects.push(project);
+  return project;
+}
+
+export async function updateProject(
+  slug: string,
+  _ownerId: string,
+  draft: ProjectDraft
+): Promise<Project> {
+  const idx = projects.findIndex((p) => p.slug === slug);
+  if (idx === -1) {
+    return createProject(draft, _ownerId);
+  }
+  const existing = projects[idx];
+  const updated: Project = {
+    ...existing,
+    type: draft.type,
+    title: draft.title,
+    summary: draft.summary,
+    description: draft.description,
+    repo_url: draft.repo_url,
+    default_branch: draft.default_branch || "main",
+    sync_commit: draft.sync_commit ?? null,
+    sync_branch: draft.sync_branch ?? null,
+    sync_path: draft.sync_path ?? null,
+    difficulty: draft.difficulty,
+    tags: draft.tags,
+    updated_at: new Date().toISOString(),
+  };
+  projects[idx] = updated;
+  return updated;
+}
+
+function uniqueSlug(base: string): string {
+  let slug = base;
+  let i = 1;
+  while (projects.some((p) => p.slug === slug)) {
+    slug = `${base}-${i++}`;
+  }
+  return slug;
 }
