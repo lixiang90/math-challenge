@@ -51,6 +51,10 @@
     "sortPoints": "Highest points",
     "sortTitle": "Title A–Z",
     "resultCount": "{count, plural, =0 {No projects} one {# project} other {# projects}}",
+    "showing": "Showing {from}–{to} of {total}",
+    "prev": "Previous",
+    "next": "Next",
+    "pagination": "Pagination",
     "reset": "Reset filters",
     "empty": "No projects match these filters.",
     "emptyHint": "Try widening the type or difficulty filter."

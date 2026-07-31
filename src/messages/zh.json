@@ -51,6 +51,10 @@
     "sortPoints": "积分最高",
     "sortTitle": "标题 A–Z",
     "resultCount": "{count, plural, =0 {没有项目} other {# 个项目}}",
+    "showing": "显示第 {from}–{to} 项，共 {total} 项",
+    "prev": "上一页",
+    "next": "下一页",
+    "pagination": "分页",
     "reset": "重置筛选",
     "empty": "没有符合条件的项目。",
     "emptyHint": "试试放宽类型或难度条件。"

@@ -24,6 +24,21 @@ const DIFFICULTIES: Difficulty[] = [
   "research",
 ];
 
+/** Default page size for the project grid. */
+const PAGE_SIZE = 60;
+
+/**
+ * Build a compact page-number window around the current page, always keeping
+ * the first and last pages, with an ellipsis where pages are omitted.
+ */
+function pageWindow(current: number, total: number, spread = 1): number[] {
+  const pages = new Set<number>([1, total, current]);
+  for (let i = current - spread; i <= current + spread; i++) {
+    if (i >= 1 && i <= total) pages.add(i);
+  }
+  return [...pages].sort((a, b) => a - b);
+}
+
 /**
  * Filtering happens in memory for phase 1. Phase 2 pushes these predicates
  * down into the Postgres query and keeps the same prop surface.
@@ -46,9 +61,15 @@ export function ProjectGrid({
   const [difficulty, setDifficulty] = React.useState<Difficulty | "">("");
   const [tag, setTag] = React.useState("");
   const [sort, setSort] = React.useState<SortKey>("recent");
+  const [page, setPage] = React.useState(1);
 
   const hasFilters =
     query !== "" || type !== "" || difficulty !== "" || tag !== "";
+
+  // Any filter/sort change invalidates the current page offset.
+  React.useEffect(() => {
+    setPage(1);
+  }, [query, type, difficulty, tag, sort]);
 
   const visible = React.useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -90,6 +111,13 @@ export function ProjectGrid({
     }
     return sorted;
   }, [projects, query, type, difficulty, tag, sort, locale]);
+
+  const totalPages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const currentPage = Math.min(Math.max(1, page), totalPages);
+  const pageStart = (currentPage - 1) * PAGE_SIZE;
+  const pageItems = visible.slice(pageStart, pageStart + PAGE_SIZE);
+  const rangeFrom = visible.length === 0 ? 0 : pageStart + 1;
+  const rangeTo = Math.min(pageStart + PAGE_SIZE, visible.length);
 
   function reset() {
     setQuery("");
@@ -185,7 +213,7 @@ export function ProjectGrid({
 
       <div className="flex items-center justify-between">
         <p className="text-[13px] text-ink-muted">
-          {t("resultCount", { count: visible.length })}
+          {t("showing", { from: rangeFrom, to: rangeTo, total: visible.length })}
         </p>
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={reset}>
@@ -201,10 +229,53 @@ export function ProjectGrid({
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {visible.map((p) => (
+          {pageItems.map((p) => (
             <ProjectCard key={p.id} project={p} />
           ))}
         </div>
+      )}
+
+      {totalPages > 1 && (
+        <nav
+          className="flex items-center justify-center gap-1.5"
+          aria-label={t("pagination")}
+        >
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage === 1}
+            onClick={() => setPage(currentPage - 1)}
+          >
+            {t("prev")}
+          </Button>
+          {pageWindow(currentPage, totalPages).map((p, i, arr) => {
+            const gap = arr[i - 1] !== undefined && p - arr[i - 1] > 1;
+            return (
+              <React.Fragment key={p}>
+                {gap && (
+                  <span className="px-1 text-[13px] text-ink-faint">…</span>
+                )}
+                <Button
+                  variant={p === currentPage ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setPage(p)}
+                  className="min-w-8"
+                  aria-current={p === currentPage ? "page" : undefined}
+                >
+                  {p}
+                </Button>
+              </React.Fragment>
+            );
+          })}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage === totalPages}
+            onClick={() => setPage(currentPage + 1)}
+          >
+            {t("next")}
+          </Button>
+        </nav>
       )}
     </div>
   );
