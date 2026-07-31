@@ -28,6 +28,7 @@
     "myProjects": "My projects",
     "newProject": "New project",
     "editProject": "Edit project",
+    "admin": "Admin",
     "demoAccount": "Demo account"
   },
   "home": {
@@ -85,7 +86,18 @@
     "solvedBy": "{count, plural, =0 {No solvers yet} one {# solver} other {# solvers}}",
     "openProblem": "Open problem",
     "notFound": "Project not found",
-    "notFoundBody": "This project does not exist, or it has been unpublished."
+    "notFoundBody": "This project does not exist, or it has been unpublished.",
+    "adminBadge": "Admin",
+    "managedBySync": "Managed by sync — protected from deletion",
+    "delete": "Delete project",
+    "deleting": "Deleting…",
+    "errors": {
+      "auth": "You must sign in to delete a project.",
+      "not_found": "Project not found.",
+      "permissionDenied": "You don't have permission to delete this project.",
+      "db": "Could not delete the project. Please try again.",
+      "generic": "Something went wrong. Please try again."
+    }
   },
   "problem": {
     "statement": "Statement",
@@ -248,5 +260,21 @@
       "db": "Could not save the claim. Please try again.",
       "generic": "Something went wrong. Please try again."
     }
+  },
+  "admin": {
+    "title": "Site administration",
+    "subtitle": "Manage projects, submissions and site admins.",
+    "backToSite": "Back to site",
+    "projectsHeading": "Projects",
+    "managed": "Managed by sync",
+    "edit": "Edit",
+    "delete": "Delete",
+    "protected": "Protected",
+    "deleteConfirm": "Delete this project? This cannot be undone.",
+    "adminsHeading": "Site admins",
+    "noAdmins": "No site admins yet.",
+    "login": "GitHub login",
+    "grantedAt": "Granted",
+    "you": "You"
   }
 }

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   claimProject,
   createProject,
+  deleteProject,
   getProjectAccess,
   updateProject,
 } from "@/lib/mock/db";
@@ -176,9 +177,9 @@ export async function updateProjectAction(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "auth" };
 
-  // Only the owner or a claimed maintainer may edit.
+  // Owner, claimed maintainer, or site admin may edit.
   const access = await getProjectAccess(slug, user.id);
-  if (!access.isOwner && !access.isMaintainer) {
+  if (!access.canEdit) {
     return { ok: false, error: "permissionDenied" };
   }
 
@@ -217,6 +218,34 @@ export async function claimProjectAction(
 
   const locale = (formData.get("locale") as string | null) || "en";
   redirect(`/${locale}/projects/${slug}`);
+}
+
+export interface DeleteState {
+  ok: boolean;
+  error?: string;
+}
+
+export async function deleteProjectAction(
+  _prev: DeleteState,
+  formData: FormData
+): Promise<DeleteState> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "auth" };
+
+  const slug = (formData.get("slug") as string | null)?.trim() ?? "";
+  if (!slug) return { ok: false, error: "not_found" };
+
+  const result = await deleteProject(slug, user.id);
+  if (!result.ok) {
+    console.error("[deleteProjectAction] delete failed:", result.error);
+    return { ok: false, error: result.error };
+  }
+
+  const locale = (formData.get("locale") as string | null) || "en";
+  redirect(`/${locale}/projects`);
 }
 
 /**

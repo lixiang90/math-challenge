@@ -59,6 +59,12 @@ export interface Project {
   difficulty: Difficulty;
   tags: string[];
   status: ProjectStatus;
+  /**
+   * True for official / sync-imported content (e.g. the 231 lean-eval imports).
+   * Such projects are delete-protected — only the sync script / service_role
+   * may remove them. Set on upsert by the sync tooling.
+   */
+  managed_by_sync: boolean;
   created_at: string;
   updated_at: string;
 }

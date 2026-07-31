@@ -28,6 +28,7 @@
     "myProjects": "我的项目",
     "newProject": "发布项目",
     "editProject": "编辑项目",
+    "admin": "管理后台",
     "demoAccount": "演示账号"
   },
   "home": {
@@ -85,7 +86,18 @@
     "solvedBy": "{count, plural, =0 {尚无人解出} other {# 人解出}}",
     "openProblem": "进入题目",
     "notFound": "项目不存在",
-    "notFoundBody": "该项目不存在，或已被取消发布。"
+    "notFoundBody": "该项目不存在，或已被取消发布。",
+    "adminBadge": "管理员",
+    "managedBySync": "由同步导入管理——禁止删除",
+    "delete": "删除项目",
+    "deleting": "正在删除…",
+    "errors": {
+      "auth": "删除项目需要先登录。",
+      "not_found": "项目不存在。",
+      "permissionDenied": "你没有删除该项目的权限。",
+      "db": "删除失败，请重试。",
+      "generic": "出错了，请重试。"
+    }
   },
   "problem": {
     "statement": "题面",
@@ -248,5 +260,21 @@
       "db": "认领信息保存失败，请重试。",
       "generic": "出错了，请稍后再试。"
     }
+  },
+  "admin": {
+    "title": "站点管理",
+    "subtitle": "管理项目、提交记录与站点管理员。",
+    "backToSite": "返回站点",
+    "projectsHeading": "项目",
+    "managed": "同步导入",
+    "edit": "编辑",
+    "delete": "删除",
+    "protected": "受保护",
+    "deleteConfirm": "确定删除该项目？此操作不可恢复。",
+    "adminsHeading": "站点管理员",
+    "noAdmins": "暂无站点管理员。",
+    "login": "GitHub 账号",
+    "grantedAt": "授权时间",
+    "you": "你"
   }
 }

@@ -8,6 +8,8 @@ export interface SessionUser {
   display_name: string;
   github_login: string;
   avatar_url: string | null;
+  /** Whether this user is a site admin (computed from the site_admins table). */
+  isAdmin: boolean;
 }
 
 /**
@@ -47,7 +49,29 @@ function toSessionUser(user: {
     display_name: name,
     github_login: str("user_name") || str("preferred_username") || user.id,
     avatar_url: str("avatar_url") || null,
+    isAdmin: false,
   };
+}
+
+/**
+ * Whether the given user is a site admin. Uses the browser Supabase client:
+ * RLS on site_admins exposes only the caller's own row, so a returned row means
+ * the caller is an active admin. Safe to call from the client (no secrets).
+ */
+async function fetchIsAdmin(
+  supabase: ReturnType<typeof createClient>,
+  userId: string
+): Promise<boolean> {
+  try {
+    const { data } = await supabase
+      .from("site_admins")
+      .select("user_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    return !!data;
+  } catch {
+    return false;
+  }
 }
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
@@ -58,14 +82,26 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const supabase = createClient();
     let active = true;
 
-    supabase.auth.getSession().then(({ data }) => {
+    const hydrate = async (rawUser: SessionUser | null) => {
+      if (!rawUser) return null;
+      const isAdmin = await fetchIsAdmin(supabase, rawUser.id);
+      return { ...rawUser, isAdmin };
+    };
+
+    supabase.auth.getSession().then(async ({ data }) => {
       if (!active) return;
-      setUser(data.session?.user ? toSessionUser(data.session.user) : null);
+      const next = await hydrate(
+        data.session?.user ? toSessionUser(data.session.user) : null
+      );
+      setUser(next);
       setIsLoading(false);
     });
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ? toSessionUser(session.user) : null);
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const next = await hydrate(
+        session?.user ? toSessionUser(session.user) : null
+      );
+      setUser(next);
     });
 
     return () => {

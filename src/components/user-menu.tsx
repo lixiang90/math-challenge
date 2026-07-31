@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import { Github, LogOut, Plus, User } from "lucide-react";
+import { Github, LogOut, Plus, ShieldCheck, User } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import { useSession } from "@/components/session-provider";
 import { Button } from "@/components/ui/button";
@@ -83,6 +83,17 @@ export function UserMenu() {
               {t("newProject")}
             </Link>
           </DropdownMenu.Item>
+          {user?.isAdmin && (
+            <DropdownMenu.Item asChild>
+              <Link
+                href="/admin"
+                className="flex cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none data-[highlighted]:bg-accent-soft"
+              >
+                <ShieldCheck className="size-3.5" />
+                {t("admin")}
+              </Link>
+            </DropdownMenu.Item>
+          )}
           <DropdownMenu.Separator className="my-1 h-px bg-rule" />
           <DropdownMenu.Item
             onSelect={() => void signOut()}

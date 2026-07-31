@@ -271,6 +271,7 @@ export async function createProject(
     difficulty: draft.difficulty,
     tags: draft.tags,
     status: "published",
+    managed_by_sync: false,
     created_at: now,
     updated_at: now,
   };
@@ -300,6 +301,7 @@ export async function updateProject(
     sync_path: draft.sync_path ?? null,
     difficulty: draft.difficulty,
     tags: draft.tags,
+    managed_by_sync: existing.managed_by_sync ?? false,
     updated_at: new Date().toISOString(),
   };
   projects[idx] = updated;
@@ -309,20 +311,40 @@ export async function updateProject(
 export async function getProjectAccess(
   slug: string,
   userId: string
-): Promise<{ isOwner: boolean; isMaintainer: boolean; canClaim: boolean }> {
+): Promise<{
+  isOwner: boolean;
+  isMaintainer: boolean;
+  canClaim: boolean;
+  isAdmin: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+}> {
   const project = projects.find((p) => p.slug === slug);
-  if (!project) return { isOwner: false, isMaintainer: false, canClaim: false };
+  if (!project) {
+    return {
+      isOwner: false,
+      isMaintainer: false,
+      canClaim: false,
+      isAdmin: false,
+      canEdit: false,
+      canDelete: false,
+    };
+  }
   const isOwner = project.owner_id === userId;
   const isMaintainer = projectMembers.some(
     (m) => m.project_id === project.id && m.user_id === userId
   );
+  // 本地演示无真实登录，管理员恒为 false；接真实 Supabase 后由 site_admins 决定。
+  const isAdmin = false;
   let canClaim = false;
-  if (!isOwner && !isMaintainer) {
+  if (!isOwner && !isMaintainer && !isAdmin) {
     const login = profileById(userId)?.github_login?.toLowerCase() ?? null;
     const repoOwner = parseGithubOwner(project.repo_url);
     canClaim = !!login && !!repoOwner && login === repoOwner;
   }
-  return { isOwner, isMaintainer, canClaim };
+  const canEdit = isOwner || isMaintainer || isAdmin;
+  const canDelete = (isOwner || isAdmin) && !project.managed_by_sync;
+  return { isOwner, isMaintainer, canClaim, isAdmin, canEdit, canDelete };
 }
 
 export async function listMaintainers(
@@ -355,6 +377,21 @@ export async function claimProject(
   if (!projectMembers.some((m) => m.project_id === project.id && m.user_id === userId)) {
     projectMembers.push({ project_id: project.id, user_id: userId, role: "maintainer" });
   }
+  return { ok: true };
+}
+
+export async function deleteProject(
+  slug: string,
+  userId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const idx = projects.findIndex((p) => p.slug === slug);
+  if (idx < 0) return { ok: false, error: "not_found" };
+  const project = projects[idx];
+  const isOwner = project.owner_id === userId;
+  const isAdmin = false; // 本地演示无真实登录
+  const canDelete = (isOwner || isAdmin) && !project.managed_by_sync;
+  if (!canDelete) return { ok: false, error: "permissionDenied" };
+  projects.splice(idx, 1);
   return { ok: true };
 }
 

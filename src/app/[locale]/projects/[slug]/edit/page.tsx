@@ -26,7 +26,7 @@ export default async function EditProjectPage({
   if (!project) notFound();
 
   const access = await getProjectAccess(slug, user.id);
-  if (!access.isOwner && !access.isMaintainer) {
+  if (!access.canEdit) {
     redirect(`/${locale}/projects/${slug}`);
   }
 

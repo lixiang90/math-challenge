@@ -416,6 +416,7 @@ async function directSync(items) {
           status: "published",
           content_path: contentPath,
           content_locales: ["en"],
+          managed_by_sync: true,
         },
         { onConflict: "slug" }
       )

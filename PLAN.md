@@ -1,6 +1,6 @@
 # 形式化数学项目社区 — 需求细化与实现计划
 
-> 状态：P1 + P2（P2-1 ~ P2-7）已完成；**P3 数据层 + 批量导入 + 文件树真实拉取已完成并通过 `next build`**（详见 P3-0）；P3 验证链路（comparator GitHub Actions 闭环）待做。前端代码待 `git push` 部署，域名/DNS 等用户侧配置待办。
+> 状态：P1 + P2（P2-1 ~ P2-7）已完成；**P3 数据层 + 批量导入 + 文件树真实拉取已完成并通过 `next build`**（详见 P3-0）；**P3-2 站点管理员权限已完成**（详见下方，含 `0007_admin_role.sql`，待 apply 入真库）；P3 验证链路（comparator GitHub Actions 闭环）待做。前端代码待 `git push` 部署，域名/DNS 等用户侧配置待办。
 > 最后更新：2026-07-31
 
 ---
@@ -200,6 +200,18 @@ points_ledger(
 - [x] 文件树真实拉取：`src/lib/github.ts` 走 git-trees API（递归+按 repo@ref 缓存 1h，截断时回退单层 contents API），详情页按 sync_commit→sync_branch→default_branch 选 ref 渲染；mock 模式 GitHub 不可达时回退样例树
 - [x] 读取链路打通：详情页正文走公开 CDN（`getProjectContent` 按 locale→en 回退、5 分钟缓存），mock 模式用内联 `body` 渲染；`tsc --noEmit` + `next build` 通过，详情页 200 烟雾测试通过
 - [x] 迁移补全：`0004_profiles_no_auth_fk.sql`（profiles 去掉对 auth.users 的硬外键，便于 mock/Demo 用户）
+
+**P3-2 站点管理员权限（已完成，迁移待 apply）**
+- [x] 管理员模型设计：`@math-challenge` 为无登录的官方 bot/品牌账号，**不持有任何管理权**；管理权限是与 GitHub handle 解耦的显式角色，存于 `site_admins` 表（可审计、支持多管理员、`revoked_at` 软撤销）
+- [x] 迁移 `0007_admin_role.sql`：建 `site_admins` 表 + `is_site_admin()` 安全定义函数；`site_admins` 的 RLS 为「仅本人可见/改自己行、插入 `with check(false)` 禁止自助提权」；`projects` 增 `managed_by_sync` 列（官方/同步导入内容标记）
+- [x] 删除保护：RLS `projects_delete_self` 为 `(owner_id = auth.uid() or is_site_admin()) and not managed_by_sync`；应用层 `getProjectAccess().canDelete` 双重校验 → 231 个同步项目任何人都无法删除（仅 service_role / 同步脚本可删）
+- [x] 首任管理员 bootstrap：环境变量 `INITIAL_ADMIN_LOGINS=lixiang90`；`ensureInitialAdmins()` 用 service_role 幂等 seed（已接在真实路径 `getProjectAccess` 与 `getIsAdmin` 中）。登录后访问任意项目页即被 seed，再到 `/admin` 即可见
+- [x] `/admin` 页面：列出全站管理员与全部项目，项目表含「官方保护」标记与删除按钮（`managed_by_sync` 行显示 Protected）；`getIsAdmin()` 服务端校验（seed-before-read）
+- [x] 中间件门户：对 `/<locale>/admin` 做「仅拦截匿名用户」的轻量预过滤（middleware 永不预渲染，可靠）；真实判定交给页面 `getIsAdmin()`，避免 Edge 下 service-role 调用与首任管理员死锁
+- [x] 客户端：导航头像下拉按 `session.user.isAdmin`（浏览器客户端读 `site_admins` 本人行，RLS 仅暴露自己）显示 Admin 入口；项目详情页对非 owner 但 isAdmin 显示管理徽章 + 编辑/删除入口
+- [ ] **待办**：`0007_admin_role.sql` 尚未 apply 入真库（当前 Supabase 连接器未连接、凭据为占位符）；部署前需在 Supabase SQL Editor / CLI 执行该迁移，并确认 `INITIAL_ADMIN_LOGINS` 已写入生产环境变量
+
+> 迁移清单补录：`0007_admin_role.sql`（P3-2 管理员角色 + `managed_by_sync` 删除保护）。**尚未 apply**，需在生产 Supabase 执行（本机 Supabase MCP / Dashboard）。
 
 **P3-1 验证链路（待做）**
 - [ ] 独立 verifier 仓库：Dockerfile（Lean + Mathlib 缓存 + landrun + lean4export）

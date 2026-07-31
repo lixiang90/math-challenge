@@ -15,6 +15,7 @@ import type {
 } from "@/lib/types";
 import { parseGithubOwner, slugify } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/server";
+import { ensureInitialAdmins } from "@/lib/admin";
 import { fetchGithubFileTree } from "@/lib/github";
 import {
   contentPathFor,
@@ -621,17 +622,52 @@ export async function updateProject(
 export async function getProjectAccess(
   slug: string,
   userId: string | null
-): Promise<{ isOwner: boolean; isMaintainer: boolean; canClaim: boolean }> {
-  if (!userId) return { isOwner: false, isMaintainer: false, canClaim: false };
+): Promise<{
+  isOwner: boolean;
+  isMaintainer: boolean;
+  canClaim: boolean;
+  isAdmin: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+}> {
+  if (!userId) {
+    return {
+      isOwner: false,
+      isMaintainer: false,
+      canClaim: false,
+      isAdmin: false,
+      canEdit: false,
+      canDelete: false,
+    };
+  }
   if (useMock()) return mock.getProjectAccess(slug, userId);
+
+  // Bootstrap the first admin(s) from INITIAL_ADMIN_LOGINS on authenticated hits.
+  await ensureInitialAdmins();
 
   const supabase = await createClient();
   const { data: project } = await supabase
     .from("projects")
-    .select("id, repo_url, owner_id")
+    .select("id, repo_url, owner_id, managed_by_sync")
     .eq("slug", slug)
     .maybeSingle();
-  if (!project) return { isOwner: false, isMaintainer: false, canClaim: false };
+  if (!project) {
+    return {
+      isOwner: false,
+      isMaintainer: false,
+      canClaim: false,
+      isAdmin: false,
+      canEdit: false,
+      canDelete: false,
+    };
+  }
+
+  const { data: adminRow } = await supabase
+    .from("site_admins")
+    .select("user_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+  const isAdmin = !!adminRow;
 
   const isOwner = project.owner_id === userId;
   let isMaintainer = false;
@@ -645,7 +681,7 @@ export async function getProjectAccess(
   }
 
   let canClaim = false;
-  if (!isOwner && !isMaintainer) {
+  if (!isOwner && !isMaintainer && !isAdmin) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("github_login")
@@ -656,7 +692,10 @@ export async function getProjectAccess(
     canClaim = !!login && !!repoOwner && login === repoOwner;
   }
 
-  return { isOwner, isMaintainer, canClaim };
+  const canEdit = isOwner || isMaintainer || isAdmin;
+  const canDelete = (isOwner || isAdmin) && !project.managed_by_sync;
+
+  return { isOwner, isMaintainer, canClaim, isAdmin, canEdit, canDelete };
 }
 
 /** List the maintainers (besides the owner) of a project. */
@@ -731,6 +770,27 @@ export async function claimProject(
     { project_id: project.id, user_id: userId, role: "maintainer" },
     { onConflict: "project_id,user_id" }
   );
+  if (error) return { ok: false, error: "db" };
+  return { ok: true };
+}
+
+/**
+ * Delete a project. Deletion is permitted only when the caller owns it OR is an
+ * admin, AND the project is not `managed_by_sync` (official / sync-imported
+ * content is delete-protected — only the sync script / service_role may remove it).
+ * The RLS `projects_delete_self` policy enforces this server-side as well.
+ */
+export async function deleteProject(
+  slug: string,
+  userId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (useMock()) return mock.deleteProject(slug, userId);
+
+  const access = await getProjectAccess(slug, userId);
+  if (!access.canDelete) return { ok: false, error: "permissionDenied" };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("projects").delete().eq("slug", slug);
   if (error) return { ok: false, error: "db" };
   return { ok: true };
 }

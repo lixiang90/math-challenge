@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { ArrowLeft, ExternalLink, GitBranch, Pencil, Trophy, Users } from "lucide-react";
+import { ArrowLeft, ExternalLink, GitBranch, Pencil, Trophy, Trash2, Users } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import { DifficultyBadge, FallbackNotice, TypeBadge } from "@/components/badges";
 import { Markdown, RichText } from "@/components/markdown";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Section } from "@/components/ui/card";
 import { ClaimButton } from "@/components/claim-button";
+import { DeleteProjectButton } from "@/components/delete-project-button";
 import {
   getProjectAccess,
   getProjectBySlug,
@@ -50,6 +51,8 @@ export default async function ProjectPage({
   if (!project) notFound();
 
   let canEdit = false;
+  let canDelete = false;
+  let isAdmin = false;
   let canClaim = false;
   let maintainers: ProjectMaintainer[] = [];
   if (!useMock()) {
@@ -59,7 +62,9 @@ export default async function ProjectPage({
     } = await supabase.auth.getUser();
     if (user) {
       const access = await getProjectAccess(slug, user.id);
-      canEdit = access.isOwner || access.isMaintainer;
+      canEdit = access.canEdit;
+      canDelete = access.canDelete;
+      isAdmin = access.isAdmin;
       canClaim = access.canClaim;
     }
     maintainers = await listMaintainers(project.id);
@@ -106,6 +111,9 @@ export default async function ProjectPage({
         <div className="flex flex-wrap items-center gap-1.5">
           <TypeBadge type={project.type} />
           <DifficultyBadge level={project.difficulty} />
+          {isAdmin && (
+            <Badge tone="accent">{t("adminBadge")}</Badge>
+          )}
           {project.type === "challenge" && (
             <Badge tone="gold">
               <Trophy className="size-3" />
@@ -230,6 +238,17 @@ export default async function ProjectPage({
                 {tn("editProject")}
               </Link>
             </Button>
+          )}
+
+          {canDelete ? (
+            <DeleteProjectButton slug={project.slug} locale={locale} />
+          ) : (
+            isAdmin &&
+            project.managed_by_sync && (
+              <p className="rounded-xl border border-rule bg-card px-4 py-3 text-center text-[12px] text-ink-faint">
+                {t("managedBySync")}
+              </p>
+            )
           )}
 
           {canClaim && <ClaimButton slug={project.slug} locale={locale} />}
