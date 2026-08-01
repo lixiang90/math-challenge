@@ -74,10 +74,13 @@ const argOf = (f) => {
 
 const DRY_RUN = has("--dry-run");
 const EMIT_DIR = argOf("--emit");
+const VERIFIER_ONLY = has("--verifier-only");
 const CHUNK = Number(argOf("--chunk") || 12);
 const LIMIT = Number(argOf("--limit") || 0);
 const TARBALL = argOf("--tarball");
 const PRUNE = has("--prune");
+// Safety gate: syncing templates must not make every problem live by accident.
+const ENABLE_SUBMISSIONS = has("--enable-submissions");
 
 const log = (...a) => console.error(...a);
 
@@ -284,6 +287,10 @@ function collect(files, categoryById = new Map()) {
     else if (file === "config.json") e.config = buf.toString("utf8");
     else if (file === "holes.json") e.holes = buf.toString("utf8");
     else if (file === "Challenge.lean") e.challenge = buf.toString("utf8");
+    else if (file === "Submission.lean" || /^Submission\/(?:[^/]+\/)*[^/]+\.lean$/.test(file)) {
+      e.submissionTemplates ||= {};
+      e.submissionTemplates[file] = buf.toString("utf8");
+    }
   }
 
   const out = [];
@@ -332,6 +339,10 @@ function collect(files, categoryById = new Map()) {
       permittedAxioms: config.permitted_axioms || ["propext", "Quot.sound", "Classical.choice"],
       definitionNames: config.definition_names || [],
       enableNanoda: Boolean(config.enable_nanoda),
+      verifierProblemId: name,
+      submissionTemplates: e.submissionTemplates || {},
+      submissionEnabled:
+        ENABLE_SUBMISSIONS && Boolean(e.submissionTemplates?.["Submission.lean"]),
     });
   }
   return { items: out, skipped };
@@ -369,12 +380,15 @@ ON CONFLICT (slug) DO UPDATE SET
 INSERT INTO public.challenge_problems
   (project_id, slug, order_index, title, statement, challenge_lean_path,
    challenge_lean_source, solution_module, theorem_names, permitted_axioms,
-   definition_names, enable_nanoda, bonus_points, status)
+   definition_names, enable_nanoda, bonus_points, status, verifier_problem_id,
+   submission_templates, submission_enabled)
 VALUES ((SELECT id FROM public.projects WHERE slug = ${q(p.slug)}), ${q(p.name)}, 1,
   ${i18n(p.title)}, ${i18n(p.statement)},
   ${q(`${syncPath}/Challenge.lean`)}, ${dq(p.challengeSource)},
   ${q(p.solutionModule)}, ${arr(p.theoremNames)}, ${arr(p.permittedAxioms)},
-  ${arr(p.definitionNames)}, ${p.enableNanoda}, ${p.bonusPoints}, 'open')
+  ${arr(p.definitionNames)}, ${p.enableNanoda}, ${p.bonusPoints}, 'open',
+  ${q(p.verifierProblemId)}, ${dq(JSON.stringify(p.submissionTemplates))}::jsonb,
+  ${p.submissionEnabled})
 ON CONFLICT (project_id, slug) DO UPDATE SET
   title = EXCLUDED.title, statement = EXCLUDED.statement,
   challenge_lean_path = EXCLUDED.challenge_lean_path,
@@ -384,7 +398,28 @@ ON CONFLICT (project_id, slug) DO UPDATE SET
   permitted_axioms = EXCLUDED.permitted_axioms,
   definition_names = EXCLUDED.definition_names,
   enable_nanoda = EXCLUDED.enable_nanoda,
-  bonus_points = EXCLUDED.bonus_points;
+  bonus_points = EXCLUDED.bonus_points,
+  verifier_problem_id = EXCLUDED.verifier_problem_id,
+  submission_templates = EXCLUDED.submission_templates,
+  submission_enabled = EXCLUDED.submission_enabled;
+`;
+}
+
+function verifierMetadataSql(p) {
+  const templates = p.submissionTemplates?.["Submission.lean"]
+    ? `${dq(JSON.stringify(p.submissionTemplates))}::jsonb`
+    : "null";
+  return `-- ${p.name}
+UPDATE public.challenge_problems AS cp
+SET verifier_problem_id = ${q(p.verifierProblemId)},
+    submission_templates = ${templates},
+    submission_enabled = false
+FROM public.projects AS project
+WHERE cp.project_id = project.id
+  AND cp.slug = ${q(p.name)}
+  AND project.slug = ${q(p.slug)}
+  AND project.managed_by_sync = true
+  AND 'lean-eval' = ANY(project.tags);
 `;
 }
 
@@ -484,6 +519,9 @@ async function directSync(items) {
         enable_nanoda: p.enableNanoda,
         bonus_points: p.bonusPoints,
         status: "open",
+        verifier_problem_id: p.verifierProblemId,
+        submission_templates: p.submissionTemplates,
+        submission_enabled: p.submissionEnabled,
       },
       { onConflict: "project_id,slug" }
     );
@@ -535,11 +573,15 @@ async function main() {
     const tests = items.filter((p) => p.isTest).length;
     const withLean = items.filter((p) => p.challengeSource).length;
     const withHole = items.filter((p) => p.statement.includes("```lean")).length;
+    const withTemplates = items.filter(
+      (p) => Boolean(p.submissionTemplates?.["Submission.lean"]),
+    ).length;
     const dupes = items.length - new Set(items.map((p) => p.slug)).size;
     log("");
     log(`  test problem : ${tests}`);
     log(`  有 Challenge.lean : ${withLean}`);
     log(`  有形式化语句 : ${withHole}`);
+    log(`  有提交模板 : ${withTemplates}`);
     log(`  slug 冲突 : ${dupes}`);
     log(`  正文平均长度 : ${Math.round(items.reduce((s, p) => s + p.content.length, 0) / items.length)} 字符`);
     log(`  Challenge.lean 最大 : ${Math.max(...items.map((p) => p.challengeSource.length))} 字符`);
@@ -554,10 +596,12 @@ async function main() {
     if (existsSync(EMIT_DIR)) rmSync(EMIT_DIR, { recursive: true, force: true });
     mkdirSync(join(EMIT_DIR, "sql"), { recursive: true });
 
-    for (const p of items) {
-      const file = join(EMIT_DIR, "content", `projects/${p.slug}`, "en.md");
-      mkdirSync(dirname(file), { recursive: true });
-      writeFileSync(file, p.content, "utf8");
+    if (!VERIFIER_ONLY) {
+      for (const p of items) {
+        const file = join(EMIT_DIR, "content", `projects/${p.slug}`, "en.md");
+        mkdirSync(dirname(file), { recursive: true });
+        writeFileSync(file, p.content, "utf8");
+      }
     }
 
     let n = 0;
@@ -567,11 +611,17 @@ async function main() {
         join(EMIT_DIR, "sql", `${String(++n).padStart(3, "0")}.sql`),
         `-- lean-eval 导入分片 ${n}（${part.length} 个项目）\n` +
           `-- 由 scripts/sync-lean-eval.mjs 生成，owner ${ownerId}\n\n` +
-          part.map((p) => projectSql(p, ownerId)).join("\n")
+          part
+            .map((p) =>
+              VERIFIER_ONLY ? verifierMetadataSql(p) : projectSql(p, ownerId),
+            )
+            .join("\n")
       );
     }
-    if (PRUNE) writeFileSync(join(EMIT_DIR, "sql", "999_prune.sql"), pruneSql(items.map((p) => p.slug)));
-    log(`已导出 ${items.length} 份正文与 ${n} 个 SQL 分片到 ${EMIT_DIR}/`);
+    if (PRUNE && !VERIFIER_ONLY) {
+      writeFileSync(join(EMIT_DIR, "sql", "999_prune.sql"), pruneSql(items.map((p) => p.slug)));
+    }
+    log(`已导出 ${items.length} 个条目的 ${n} 个 SQL 分片到 ${EMIT_DIR}/`);
     return;
   }
 

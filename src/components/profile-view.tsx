@@ -155,7 +155,7 @@ export function ProfileView({
                         </Link>
                       </td>
                       <td className="px-4 py-2.5 font-mono text-[12px]">
-                        {shortSha(s.commit_sha)}
+                        {s.commit_sha ? shortSha(s.commit_sha) : s.id.slice(0, 8)}
                       </td>
                       <td className="px-4 py-2.5">
                         <StatusBadge status={s.status} />
