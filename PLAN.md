@@ -213,13 +213,22 @@ points_ledger(
 
 > 迁移清单补录：`0007_admin_role.sql`（P3-2 管理员角色 + `managed_by_sync` 删除保护）、`0008_lean_eval_categories.sql`（231 个 lean-eval 挑战的数学分类标签）。**两者均已 apply 入真库**：0007 用户执行、0008 经本机 Supabase MCP `execute_sql` 执行并回查验证（with_cat 231/231）。
 
-**P3-1 验证链路（待做）**
-- [ ] 独立 verifier 仓库：Dockerfile（Lean + Mathlib 缓存 + landrun + lean4export）
-- [ ] GitHub Actions workflow：接收 `workflow_dispatch`，克隆解答仓库到指定 commit，生成 `config.json`，跑 comparator
-- [ ] Next.js Route Handler：提交入队 + 触发 workflow
-- [ ] 回调 endpoint（HMAC 签名校验）写回 `submissions.status` / `verdict` / `log_url`
-- [ ] 前端提交状态轮询或 Supabase Realtime 订阅
-- [ ] 打通一道真题端到端
+**P3-1 验证链路（待做，设计已定稿 → [`docs/verification-plan.md`](docs/verification-plan.md)）**
+
+已确认决策：提交载荷「**内联多文件**为主 + 仓库 URL 为辅」；范围「官方 231 题 + 站内自建题」；执行后端 GitHub Actions；verifier 仓库 **fork `leanprover/lean-eval`**（`Main.lean:36-40` 写死只认默认 `manifests/problems/`，社区题必须放进仓库结构里）；**任何登录用户可创建挑战题目，经 `site_admins` 审核后才成为可验证题目**（出题 = CI 内编译 `Challenge.lean`，人工审核是信任闸门）；防刷用冷却 + 日配额 + 全局并发上限；回写走 HMAC 签名回调（service_role 密钥不出 Vercel）；def 洞题进 `review` 队列人工确认后计分。
+
+关键发现：
+- **验证内核无需自己实现**，`lake exe lean-eval run-eval --json --workspaces-root <tmp> --problem <id>` 一条命令已包含 landrun / comparator / nanoda / 常量图比对；`generate --problem <id>` 支持单题生成，社区出题也可复用官方 CLI。
+- **多文件是官方原生能力**：工作区 README 明写「Multi-file submissions are allowed」，实测 232/232 个 `generated/` 工作区都自带 `Submission.lean` + `Submission/Helpers.lean`，叠加逻辑见官方 `evaluate_submission.py:229-272`。因此模板列必须是 jsonb 多文件映射，不能只存单个 text。
+- **审核期 TOCTOU 是出题流程最关键的安全点**：提交审核时用 `source_digest` 锁定内容，CI 拉取后重算比对，否则人工审核形同虚设。
+
+- [ ] M0 verifier 仓奠基：fork lean-eval，装 pin 死 SHA 的 landrun / lean4export / comparator / nanoda，验证 `two_plus_two`（含一份多文件解）
+- [ ] M1 数据层：`0009_submission_pipeline.sql`（提交侧 inline 多文件列 + 防刷唯一索引 + `submission_templates` jsonb；出题侧 `authoring_status` / `source_digest` / `problem_reviews`）+ 两个私有桶 + `sync-lean-eval.mjs` 递归采集模板
+- [ ] M2 提交入口：`/api/submissions` + 限流 + `lean-paths.ts` 校验 + **多文件标签编辑器**（删掉「commit SHA 末位奇偶定成败」的模拟逻辑）
+- [ ] M3 验证闭环：`verify-submission.yml`（evaluate / record 双 job 拆分）+ HMAC 回调 + 前端轮询 + 自时钟队列
+- [ ] M4 出题与审核（不接 CI）：作者草稿 / 提交审核 + `source_digest` 锁定 + 管理员审核队列与强制确认框
+- [ ] M5 出题发布流水线：`publish-problem.yml`（generate 无 secret / publish 白名单路径 双 job）+ digest 比对 + 元数据回调
+- [ ] M6 积分与复核：`points_ledger` 触发器 + `review` 队列后台
 
 ### P4 — 积分与激励
 
@@ -241,7 +250,8 @@ points_ledger(
 
 | 风险 | 说明 | 缓解 |
 |---|---|---|
-| **外部仓库拉取的安全面** | 提交形式是 Git URL，runner 要克隆任意用户仓库。恶意 `lakefile.lean` 可在 build 期执行任意代码 | 全程在一次性 runner + landrun 沙箱内；禁网或白名单出网；限制 lake 依赖来源；克隆深度限 1 |
+| **不可信 Lean 代码的执行面** | 提交内容（内联粘贴或克隆的仓库文件）会被编译，Lean 编译期可跑任意 IO | 只覆盖 `Submission.lean` 与 `Submission/**/*.lean`，其余文件取自 pristine checkout；一次性 runner + landrun 沙箱（exec 白名单仅 `lean`/`git`）；跑不可信代码前 `rm -rf .git`；**绝不在沙箱外预编译任何传递导入 `Submission` 的目标**（官方 #92 教训）|
+| **出题 = CI 内任意代码执行** | `Challenge.lean` / `ChallengeDeps.lean` 是可信代码，`generate` / `check-problem-build` 会在沙箱外编译 | 任何人可提题但**只有管理员批准才触发编译**；`source_digest` 锁定审核内容防 TOCTOU；`generate` job 无 secret、`publish` job 只 commit 白名单路径；出题链路与提交验证链路的 job 与密钥完全隔离。加固项：把 `generate` 也塞进 landrun（需 spike，官方未这么做） |
 | **Mathlib 构建耗时** | 冷启动可能十几分钟，用户体验差 | 预构建 Docker 镜像 + `lake exe cache get`；runner 并发上限与队列排队提示 |
 | **GitHub Actions 配额** | 私有仓库分钟数有限，公开仓库免费但有并发上限 | P3 先跑通，量大后再切自建 VPS worker（verifier 接口保持抽象，可替换） |
 | **Definition holes 防作弊** | comparator 文档明确指出：含 definition holes 的题目仍需人工复核 | 此类题目标记为"需人工复核"，通过后进审核队列而非直接计分 |
