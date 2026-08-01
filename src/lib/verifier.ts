@@ -20,11 +20,19 @@ export function solutionDigest(files: SolutionFiles): string {
 
 function verifierConfig() {
   const repo = process.env.VERIFIER_REPO;
-  const token = process.env.VERIFIER_GITHUB_TOKEN;
+  // Dashboard/CLI secret entry can accidentally retain a trailing newline.
+  // Whitespace is never part of a GitHub PAT, so normalize it before building
+  // the Authorization header.
+  const token = process.env.VERIFIER_GITHUB_TOKEN?.trim();
   if (!repo || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) {
     throw new Error("VERIFIER_REPO must be configured as owner/repository.");
   }
   if (!token) throw new Error("VERIFIER_GITHUB_TOKEN is not configured.");
+  if (!token.startsWith("github_pat_")) {
+    throw new Error(
+      "VERIFIER_GITHUB_TOKEN must be the fine-grained PAT value (starting with github_pat_), without an environment-variable name or Bearer prefix.",
+    );
+  }
   return {
     repo,
     token,
@@ -45,7 +53,13 @@ async function assertPrivateVerifierRepo(config: ReturnType<typeof verifierConfi
       signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) {
-      throw new Error(`Unable to verify verifier repository privacy (${response.status}).`);
+      const details = (await response.text()).replace(/\s+/g, " ").trim().slice(0, 200);
+      const requestId = response.headers.get("x-github-request-id");
+      throw new Error(
+        `Unable to verify verifier repository privacy (${response.status})` +
+          `${details ? `: ${details}` : "."}` +
+          `${requestId ? ` GitHub request: ${requestId}.` : ""}`,
+      );
     }
     const metadata = (await response.json()) as { private?: boolean };
     if (metadata.private !== true) {

@@ -208,7 +208,8 @@ queued → running → passed
 
 ### GitHub verifier repo
 
-- repository variable `MATH_CHALLENGE_CALLBACK_URL=https://math-challenge.org/api/verify/callback`
+- repository variable `MATH_CHALLENGE_CALLBACK_URL=https://www.math-challenge.org/api/verify/callback`
+  （裸域名会先返回 308；固定使用 canonical `www` 域名，避免回调客户端依赖重定向语义。）
 - Actions secret `VERIFIER_CALLBACK_SECRET`，与 Vercel 完全相同。
 - workflow 默认权限保持只读；不启用 fork PR secrets。
 
