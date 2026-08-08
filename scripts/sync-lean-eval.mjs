@@ -386,17 +386,21 @@ function projectSql(p, ownerId) {
   return `-- ${p.name}
 INSERT INTO public.projects
   (slug, owner_id, type, title, summary, repo_url, default_branch, sync_branch,
-   sync_path, difficulty, tags, status, content_path, content_locales)
+   sync_path, difficulty, tags, status, content_path, content_locales,
+   managed_by_sync)
 VALUES (${q(p.slug)}, ${q(ownerId)}, 'challenge',
   ${i18n(p.title)}, ${i18n(p.summary)}, ${q(SYNC_REPO_URL)}, ${q(SYNC_BRANCH)}, ${q(SYNC_BRANCH)},
   ${q(syncPath)}, ${q(p.difficulty)}, ${arr(p.tags)}, 'published',
-  ${q(contentPath)}, ARRAY['en']::text[])
+  ${q(contentPath)}, ARRAY['en']::text[], true)
 ON CONFLICT (slug) DO UPDATE SET
   type = EXCLUDED.type, title = EXCLUDED.title, summary = EXCLUDED.summary,
-  repo_url = EXCLUDED.repo_url, sync_branch = EXCLUDED.sync_branch,
+  repo_url = EXCLUDED.repo_url, default_branch = EXCLUDED.default_branch,
+  sync_branch = EXCLUDED.sync_branch,
   sync_path = EXCLUDED.sync_path, difficulty = EXCLUDED.difficulty,
-  tags = EXCLUDED.tags, content_path = EXCLUDED.content_path,
-  content_locales = EXCLUDED.content_locales, updated_at = now();
+  tags = EXCLUDED.tags, status = EXCLUDED.status,
+  content_path = EXCLUDED.content_path,
+  content_locales = EXCLUDED.content_locales,
+  managed_by_sync = EXCLUDED.managed_by_sync, updated_at = now();
 
 INSERT INTO public.challenge_problems
   (project_id, slug, order_index, title, statement, challenge_lean_path,
@@ -405,7 +409,7 @@ INSERT INTO public.challenge_problems
    submission_templates, submission_enabled)
 VALUES ((SELECT id FROM public.projects WHERE slug = ${q(p.slug)}), ${q(p.name)}, 1,
   ${i18n(p.title)}, ${i18n(p.statement)},
-  ${q(`${syncPath}/Challenge.lean`)}, ${dq(p.challengeSource)},
+  ${q(`${GEN}${p.name}/Challenge.lean`)}, ${dq(p.challengeSource)},
   ${q(p.solutionModule)}, ${arr(p.theoremNames)}, ${arr(p.permittedAxioms)},
   ${arr(p.definitionNames)}, ${p.enableNanoda}, ${p.bonusPoints}, 'open',
   ${q(p.verifierProblemId)}, ${dq(JSON.stringify(p.submissionTemplates))}::jsonb,
@@ -632,11 +636,13 @@ async function main() {
         join(EMIT_DIR, "sql", `${String(++n).padStart(3, "0")}.sql`),
         `-- lean-eval 导入分片 ${n}（${part.length} 个项目）\n` +
           `-- 由 scripts/sync-lean-eval.mjs 生成，owner ${ownerId}\n\n` +
+          "BEGIN;\n\n" +
           part
             .map((p) =>
               VERIFIER_ONLY ? verifierMetadataSql(p) : projectSql(p, ownerId),
             )
-            .join("\n")
+            .join("\n") +
+          "\nCOMMIT;\n"
       );
     }
     if (PRUNE && !VERIFIER_ONLY) {
