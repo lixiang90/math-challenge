@@ -34,6 +34,10 @@
  *   --chunk <n>        每个 SQL 分片包含多少个项目（默认 12）
  *   --limit <n>        只处理前 n 个子文件夹（冒烟测试用）
  *   --tarball <path>   读本地 tar.gz，跳过下载（离线调试）
+ *   --repo <owner/name> 数据来源仓库（默认 leanprover/lean-eval）
+ *   --branch <name>     数据来源默认分支（默认 main）
+ *   --sync-path-prefix <path> 代码工作区在目标仓库中的目录前缀
+ *   --tag <tag>         给所有导入项目附加一个标签
  *   --prune            仓库中已删除的题目在库中标记为 archived
  *
  * 环境变量
@@ -81,12 +85,19 @@ const TARBALL = argOf("--tarball");
 const PRUNE = has("--prune");
 // Safety gate: syncing templates must not make every problem live by accident.
 const ENABLE_SUBMISSIONS = has("--enable-submissions");
+const SYNC_REPO = argOf("--repo") || REPO;
+const SYNC_BRANCH = argOf("--branch") || BRANCH;
+const SYNC_PATH_PREFIX = argOf("--sync-path-prefix")?.replace(/^\/+|\/+$/g, "");
+const EXTRA_TAG = argOf("--tag");
+const SYNC_REPO_URL = `https://github.com/${SYNC_REPO}`;
+const SYNC_TAGS = [...TAGS, ...(EXTRA_TAG ? [EXTRA_TAG] : [])];
 
 const log = (...a) => console.error(...a);
 
 // 代理（仅在显式设置时启用，undici 缺失则静默跳过）
 const PROXY = process.env.HTTPS_PROXY || process.env.https_proxy;
-if (PROXY) {
+// A ProxyAgent keeps Node's event loop alive. Local-tarball imports never need it.
+if (PROXY && !TARBALL) {
   try {
     const { setGlobalDispatcher, ProxyAgent } = await import("undici");
     setGlobalDispatcher(new ProxyAgent(PROXY));
@@ -218,11 +229,22 @@ function clamp(s, n) {
   return t.length > n ? t.slice(0, n - 1) + "…" : t;
 }
 
+function sourcePathFromMetadata(source) {
+  const match = String(source || "").match(
+    /^https:\/\/github\.com\/[^/]+\/[^/]+\/(?:blob|tree)\/[^/]+\/(.+)$/,
+  );
+  return match?.[1];
+}
+
 /** 组装存进 Storage 的项目正文（Markdown）。 */
 function buildContent(name, meta, holes, config) {
   const f = meta.fields;
   const out = [`# ${meta.title || name}`, ""];
-  out.push(`\`${name}\` — a formalization challenge from the [lean-eval](${REPO_URL}) benchmark.`, "");
+  const sourceLabel = SYNC_REPO === REPO ? "lean-eval" : SYNC_REPO;
+  out.push(
+    `\`${name}\` — a formalization challenge imported from [${sourceLabel}](${SYNC_REPO_URL}) in lean-eval comparator format.`,
+    "",
+  );
 
   if (f.notes) out.push("## Notes", "", f.notes, "");
   if (meta.body) out.push(meta.body, "");
@@ -329,11 +351,14 @@ function collect(files, categoryById = new Map()) {
       isTest,
       difficulty: isTest ? "intro" : "research",
       bonusPoints: isTest ? POINTS_TEST : POINTS_RESEARCH,
+      syncPath: SYNC_PATH_PREFIX
+        ? `${SYNC_PATH_PREFIX}/${name}`
+        : sourcePathFromMetadata(meta.fields.source) || `${GEN}${name}`,
       // 数学分类标签（来自 LeanEval manifests 的 module 字段），与通用标签合并
       category: categoryById.get(name) || undefined,
       tags: isTest
-        ? [...TAGS, "test-problem", ...(categoryById.get(name) ? [categoryById.get(name)] : [])]
-        : [...TAGS, ...(categoryById.get(name) ? [categoryById.get(name)] : [])],
+        ? [...SYNC_TAGS, "test-problem", ...(categoryById.get(name) ? [categoryById.get(name)] : [])]
+        : [...SYNC_TAGS, ...(categoryById.get(name) ? [categoryById.get(name)] : [])],
       solutionModule: config.solution_module || "Solution",
       theoremNames: config.theorem_names || [],
       permittedAxioms: config.permitted_axioms || ["propext", "Quot.sound", "Classical.choice"],
@@ -360,22 +385,26 @@ const arr = (a) => (a.length ? `ARRAY[${a.map(q).join(",")}]::text[]` : `'{}'::t
 const i18n = (en) => `${dq(JSON.stringify({ en }))}::jsonb`;
 
 function projectSql(p, ownerId) {
-  const syncPath = `${GEN}${p.name}`;
+  const syncPath = p.syncPath;
   const contentPath = `projects/${p.slug}`;
   return `-- ${p.name}
 INSERT INTO public.projects
   (slug, owner_id, type, title, summary, repo_url, default_branch, sync_branch,
-   sync_path, difficulty, tags, status, content_path, content_locales)
+   sync_path, difficulty, tags, status, content_path, content_locales,
+   managed_by_sync)
 VALUES (${q(p.slug)}, ${q(ownerId)}, 'challenge',
-  ${i18n(p.title)}, ${i18n(p.summary)}, ${q(REPO_URL)}, ${q(BRANCH)}, ${q(BRANCH)},
+  ${i18n(p.title)}, ${i18n(p.summary)}, ${q(SYNC_REPO_URL)}, ${q(SYNC_BRANCH)}, ${q(SYNC_BRANCH)},
   ${q(syncPath)}, ${q(p.difficulty)}, ${arr(p.tags)}, 'published',
-  ${q(contentPath)}, ARRAY['en']::text[])
+  ${q(contentPath)}, ARRAY['en']::text[], true)
 ON CONFLICT (slug) DO UPDATE SET
   type = EXCLUDED.type, title = EXCLUDED.title, summary = EXCLUDED.summary,
-  repo_url = EXCLUDED.repo_url, sync_branch = EXCLUDED.sync_branch,
+  repo_url = EXCLUDED.repo_url, default_branch = EXCLUDED.default_branch,
+  sync_branch = EXCLUDED.sync_branch,
   sync_path = EXCLUDED.sync_path, difficulty = EXCLUDED.difficulty,
-  tags = EXCLUDED.tags, content_path = EXCLUDED.content_path,
-  content_locales = EXCLUDED.content_locales, updated_at = now();
+  tags = EXCLUDED.tags, status = EXCLUDED.status,
+  content_path = EXCLUDED.content_path,
+  content_locales = EXCLUDED.content_locales,
+  managed_by_sync = EXCLUDED.managed_by_sync, updated_at = now();
 
 INSERT INTO public.challenge_problems
   (project_id, slug, order_index, title, statement, challenge_lean_path,
@@ -384,7 +413,7 @@ INSERT INTO public.challenge_problems
    submission_templates, submission_enabled)
 VALUES ((SELECT id FROM public.projects WHERE slug = ${q(p.slug)}), ${q(p.name)}, 1,
   ${i18n(p.title)}, ${i18n(p.statement)},
-  ${q(`${syncPath}/Challenge.lean`)}, ${dq(p.challengeSource)},
+  ${q(`${GEN}${p.name}/Challenge.lean`)}, ${dq(p.challengeSource)},
   ${q(p.solutionModule)}, ${arr(p.theoremNames)}, ${arr(p.permittedAxioms)},
   ${arr(p.definitionNames)}, ${p.enableNanoda}, ${p.bonusPoints}, 'open',
   ${q(p.verifierProblemId)}, ${dq(JSON.stringify(p.submissionTemplates))}::jsonb,
@@ -486,10 +515,10 @@ async function directSync(items) {
           type: "challenge",
           title: { en: p.title },
           summary: { en: p.summary },
-          repo_url: REPO_URL,
-          default_branch: BRANCH,
-          sync_branch: BRANCH,
-          sync_path: `${GEN}${p.name}`,
+          repo_url: SYNC_REPO_URL,
+          default_branch: SYNC_BRANCH,
+          sync_branch: SYNC_BRANCH,
+          sync_path: p.syncPath,
           difficulty: p.difficulty,
           tags: p.tags,
           status: "published",
@@ -611,11 +640,13 @@ async function main() {
         join(EMIT_DIR, "sql", `${String(++n).padStart(3, "0")}.sql`),
         `-- lean-eval 导入分片 ${n}（${part.length} 个项目）\n` +
           `-- 由 scripts/sync-lean-eval.mjs 生成，owner ${ownerId}\n\n` +
+          "BEGIN;\n\n" +
           part
             .map((p) =>
               VERIFIER_ONLY ? verifierMetadataSql(p) : projectSql(p, ownerId),
             )
-            .join("\n")
+            .join("\n") +
+          "\nCOMMIT;\n"
       );
     }
     if (PRUNE && !VERIFIER_ONLY) {
