@@ -36,6 +36,7 @@
  *   --tarball <path>   读本地 tar.gz，跳过下载（离线调试）
  *   --repo <owner/name> 数据来源仓库（默认 leanprover/lean-eval）
  *   --branch <name>     数据来源默认分支（默认 main）
+ *   --sync-path-prefix <path> 代码工作区在目标仓库中的目录前缀
  *   --tag <tag>         给所有导入项目附加一个标签
  *   --prune            仓库中已删除的题目在库中标记为 archived
  *
@@ -86,6 +87,7 @@ const PRUNE = has("--prune");
 const ENABLE_SUBMISSIONS = has("--enable-submissions");
 const SYNC_REPO = argOf("--repo") || REPO;
 const SYNC_BRANCH = argOf("--branch") || BRANCH;
+const SYNC_PATH_PREFIX = argOf("--sync-path-prefix")?.replace(/^\/+|\/+$/g, "");
 const EXTRA_TAG = argOf("--tag");
 const SYNC_REPO_URL = `https://github.com/${SYNC_REPO}`;
 const SYNC_TAGS = [...TAGS, ...(EXTRA_TAG ? [EXTRA_TAG] : [])];
@@ -349,7 +351,9 @@ function collect(files, categoryById = new Map()) {
       isTest,
       difficulty: isTest ? "intro" : "research",
       bonusPoints: isTest ? POINTS_TEST : POINTS_RESEARCH,
-      syncPath: sourcePathFromMetadata(meta.fields.source) || `${GEN}${name}`,
+      syncPath: SYNC_PATH_PREFIX
+        ? `${SYNC_PATH_PREFIX}/${name}`
+        : sourcePathFromMetadata(meta.fields.source) || `${GEN}${name}`,
       // 数学分类标签（来自 LeanEval manifests 的 module 字段），与通用标签合并
       category: categoryById.get(name) || undefined,
       tags: isTest
