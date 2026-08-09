@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
@@ -19,9 +20,31 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "common" });
+  const requestHeaders = await headers();
+  const host =
+    requestHeaders.get("x-forwarded-host") ??
+    requestHeaders.get("host") ??
+    "www.math-challenge.org";
+  const protocol = requestHeaders.get("x-forwarded-proto") ?? "https";
+  const metadataBase = new URL(`${protocol}://${host}`);
+  const socialImage = new URL("/og.png", metadataBase).toString();
   return {
+    metadataBase,
     title: { default: t("appName"), template: `%s · ${t("appName")}` },
     description: t("tagline"),
+    openGraph: {
+      type: "website",
+      siteName: t("appName"),
+      title: t("appName"),
+      description: t("tagline"),
+      images: [{ url: socialImage, width: 1792, height: 909 }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: t("appName"),
+      description: t("tagline"),
+      images: [socialImage],
+    },
   };
 }
 
