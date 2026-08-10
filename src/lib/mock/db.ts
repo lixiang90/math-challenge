@@ -52,7 +52,7 @@ export async function listProjects(): Promise<ProjectListItem[]> {
         .from("challenge_problems")
         .select("id,project_id,bonus_points"),
       supabase
-        .from("submissions")
+        .from("solved_submissions")
         .select("problem_id,user_id,status")
         .eq("status", "passed"),
       supabase.from("profiles").select("*"),
@@ -147,7 +147,7 @@ export async function getProjectBySlug(
       .eq("project_id", project.id)
       .order("order_index", { ascending: true }),
     supabase
-      .from("submissions")
+      .from("solved_submissions")
       .select("problem_id,user_id,status")
       .eq("status", "passed"),
     supabase.from("profiles").select("*"),
@@ -231,7 +231,7 @@ export async function getProblem(
   if (!problem) return null;
 
   const { data: passedSubmissions } = await supabase
-    .from("submissions")
+    .from("solved_submissions")
     .select("user_id")
     .eq("problem_id", problem.id)
     .eq("status", "passed");
@@ -352,7 +352,7 @@ export async function listProjectsByOwner(
         .from("challenge_problems")
         .select("id,project_id,bonus_points"),
       supabase
-        .from("submissions")
+        .from("solved_submissions")
         .select("problem_id,user_id,status")
         .eq("status", "passed"),
       supabase.from("profiles").select("*"),
@@ -456,7 +456,7 @@ export async function getLeaderboard(): Promise<LeaderboardRow[]> {
     supabase.from("profiles").select("*"),
     supabase.from("points_ledger").select("user_id,delta"),
     supabase
-      .from("submissions")
+      .from("solved_submissions")
       .select("user_id,problem_id,status")
       .eq("status", "passed"),
   ]);
@@ -498,7 +498,7 @@ export async function getSiteStats() {
     supabase.from("projects").select("id", { count: "exact" }).eq("status", "published"),
     supabase.from("challenge_problems").select("id", { count: "exact" }).eq("status", "open"),
     supabase
-      .from("submissions")
+      .from("solved_submissions")
       .select("user_id")
       .eq("status", "passed"),
     supabase.from("points_ledger").select("delta"),

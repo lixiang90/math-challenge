@@ -8,9 +8,9 @@ import { RichText } from "@/components/markdown";
 import { SubmissionPanel } from "@/components/submission-panel";
 import { Badge } from "@/components/ui/badge";
 import { Section } from "@/components/ui/card";
-import { getProblem, listSubmissionsForProblem } from "@/lib/mock/db";
-import { DEMO_USER_ID } from "@/lib/mock/profiles";
+import { getProblem, listSubmissionsForProblem, useMock } from "@/lib/mock/db";
 import { resolveText } from "@/lib/i18n-content";
+import { createClient } from "@/lib/supabase/server";
 import type { AppLocale } from "@/lib/types";
 
 export async function generateMetadata({
@@ -40,10 +40,12 @@ export default async function ProblemPage({
   const tc = await getTranslations("common");
   const tp = await getTranslations("project");
 
-  const submissions = await listSubmissionsForProblem(
-    problem.id,
-    DEMO_USER_ID
-  );
+  const authUser = useMock()
+    ? null
+    : (await (await createClient()).auth.getUser()).data.user;
+  const submissions = authUser
+    ? await listSubmissionsForProblem(problem.id, authUser.id)
+    : [];
 
   const title = resolveText(problem.title, loc);
   const statement = resolveText(problem.statement, loc);
@@ -104,7 +106,8 @@ export default async function ProblemPage({
           <SubmissionPanel
             problemId={problem.id}
             initial={submissions}
-            requiresManualReview={problem.requires_manual_review}
+            templates={problem.submission_templates ?? { "Submission.lean": "" }}
+            submissionEnabled={problem.submission_enabled ?? false}
           />
         </div>
 

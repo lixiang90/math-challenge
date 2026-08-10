@@ -109,6 +109,11 @@ export interface ChallengeProblem {
   bonus_points: number;
   deadline: string | null;
   status: "open" | "closed";
+  /** lean-eval generated workspace id. Present once the verifier sync ran. */
+  verifier_problem_id?: string | null;
+  /** Pristine root submission and nested Lean-module starter files. */
+  submission_templates?: Record<string, string> | null;
+  submission_enabled?: boolean;
 }
 
 export interface SubmissionVerdict {
@@ -120,18 +125,23 @@ export interface SubmissionVerdict {
     | "declaration_match"
     | "axiom_check"
     | "kernel_replay"
+    | "verification"
     | "done";
   message: string;
   axioms_used?: string[];
+  summary?: Record<string, unknown> | null;
 }
 
 export interface Submission {
   id: string;
   problem_id: string;
   user_id: string;
-  repo_url: string;
-  commit_sha: string;
-  solution_path: string;
+  repo_url: string | null;
+  commit_sha: string | null;
+  solution_path: string | null;
+  source_kind?: "inline" | "repo";
+  solution_digest?: string | null;
+  benchmark_commit?: string | null;
   status: SubmissionStatus;
   verdict: SubmissionVerdict | null;
   log_url: string | null;
@@ -140,6 +150,7 @@ export interface Submission {
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
+  error_message?: string | null;
 }
 
 export interface PointsLedgerEntry {

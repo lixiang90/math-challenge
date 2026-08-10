@@ -229,3 +229,11 @@ html.dark {
   overflow-y: hidden;
   padding: 0.2em 0;
 }
+
+.landing-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--color-rule) 54%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--color-rule) 54%, transparent) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: linear-gradient(to bottom right, black, transparent 72%);
+}
