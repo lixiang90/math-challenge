@@ -23,6 +23,29 @@ const ZH_DIR = join(HERE, "millennium-zh");
 const BUCKET = "project-content";
 const APPLY = process.argv.includes("--apply");
 
+// Node 不会自动读取 .env.local（那是 Next.js 的约定）。在读取密钥前手动加载，
+// 避免用户必须加 --env-file 才能运行。仅当变量尚未设置时才填充，避免覆盖。
+function loadEnvLocal() {
+  try {
+    const envPath = join(HERE, "..", ".env.local");
+    const text = readFileSync(envPath, "utf8");
+    for (const rawLine of text.split("\n")) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#")) continue;
+      const eq = line.indexOf("=");
+      if (eq === -1) continue;
+      const name = line.slice(0, eq).trim();
+      let value = line.slice(eq + 1).trim();
+      if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1);
+      if (value.startsWith("'") && value.endsWith("'")) value = value.slice(1, -1);
+      if (name && process.env[name] === undefined) process.env[name] = value;
+    }
+  } catch {
+    // 文件不存在则跳过，后续仍会因缺变量报错
+  }
+}
+loadEnvLocal();
+
 // 每个问题与：本地 md 文件、匹配关键字、卡片中文标题/摘要。
 const PROBLEMS = [
   {
