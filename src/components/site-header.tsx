@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 
 const NAV = [
   { href: "/", key: "browse" as const, match: (p: string) => p === "/" || p.startsWith("/projects") },
+  { href: "/goldbach", key: "goldbach" as const, match: (p: string) => p.startsWith("/goldbach") },
   { href: "/leaderboard", key: "leaderboard" as const, match: (p: string) => p.startsWith("/leaderboard") },
 ];
 

@@ -50,11 +50,29 @@ import { gunzipSync } from "node:zlib";
 import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 
+// 让脚本像 Next.js 一样读取 .env.local / .env 里的凭据。
+// 普通 node 不会自动加载这些文件，而直连模式需要的 SUPABASE_URL /
+// SUPABASE_SERVICE_ROLE_KEY 通常就写在 .env.local 里（与 apply 脚本保持一致）。
+function loadDotEnv() {
+  for (const f of [".env.local", ".env"]) {
+    const p = join(process.cwd(), f);
+    if (!existsSync(p)) continue;
+    for (const line of readFileSync(p, "utf8").split("\n")) {
+      const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"?([^"\n]*?)"?\s*$/);
+      if (!m) continue;
+      const [_, k, v] = m;
+      if (process.env[k] === undefined) process.env[k] = v;
+    }
+  }
+}
+loadDotEnv();
+
 const REPO = "leanprover/lean-eval";
 const BRANCH = "main";
 const GEN = "generated/";
 const REPO_URL = `https://github.com/${REPO}`;
-const TARBALL_URL = `https://codeload.github.com/${REPO}/tar.gz/refs/heads/${BRANCH}`;
+// 下载源由 loadTarball() 根据 SYNC_REPO / SYNC_BRANCH 动态拼装（见下方定义）。
+// 旧实现里这里硬编码了 leanprover/lean-eval，导致 --repo 只改元数据、数据仍拉官方仓，是 bug。
 const BUCKET = "project-content";
 const TAGS = ["lean-eval", "comparator", "lean4"];
 /** 平台机器人账号，批量导入的项目都挂在它名下 */
@@ -91,6 +109,13 @@ const SYNC_PATH_PREFIX = argOf("--sync-path-prefix")?.replace(/^\/+|\/+$/g, "");
 const EXTRA_TAG = argOf("--tag");
 const SYNC_REPO_URL = `https://github.com/${SYNC_REPO}`;
 const SYNC_TAGS = [...TAGS, ...(EXTRA_TAG ? [EXTRA_TAG] : [])];
+
+// manifest 目录在 tarball 里的顶层文件夹是 `<repo>-<branch>`，用正则从 --repo 推导，
+// 这样换源（如 math-challenge-millennium）也能正确解析分类，不再写死 lean-eval-main。
+const SYNC_REPO_BASENAME = SYNC_REPO.split("/")[1] || "lean-eval";
+const MANIFEST_RE = new RegExp(
+  `${SYNC_REPO_BASENAME.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}-[^/]+/manifests/problems/(.+)\\.toml$`,
+);
 
 const log = (...a) => console.error(...a);
 
@@ -156,7 +181,7 @@ function slugifyCat(cat) {
 function parseManifestCategories(files) {
   const map = new Map();
   for (const [path, buf] of files) {
-    const m = path.match(/lean-eval-main\/manifests\/problems\/(.+)\.toml$/);
+    const m = path.match(MANIFEST_RE);
     if (!m) continue;
     const id = m[1];
     const modLine = buf.toString("utf8").match(/^module\s*=\s*"([^"]+)"/m);
@@ -581,8 +606,9 @@ async function loadTarball() {
     log(`读取本地 tarball ${TARBALL}…`);
     return readFileSync(TARBALL);
   }
-  log(`下载 ${TARBALL_URL} …`);
-  const res = await fetch(TARBALL_URL, { headers: { "User-Agent": "math-challenge-sync" } });
+  const url = `https://codeload.github.com/${SYNC_REPO}/tar.gz/refs/heads/${SYNC_BRANCH}`;
+  log(`下载 ${url} …`);
+  const res = await fetch(url, { headers: { "User-Agent": "math-challenge-sync" } });
   if (!res.ok) throw new Error(`tarball 下载失败: ${res.status}`);
   return Buffer.from(await res.arrayBuffer());
 }

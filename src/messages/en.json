@@ -18,6 +18,7 @@
   "nav": {
     "browse": "Projects",
     "leaderboard": "Leaderboard",
+    "goldbach": "Goldbach",
     "docs": "Docs",
     "language": "Language",
     "signIn": "Sign in with GitHub",
@@ -307,5 +308,35 @@
     "login": "GitHub login",
     "grantedAt": "Granted",
     "you": "You"
+  },
+  "goldbach": {
+    "nav": "Goldbach",
+    "heroEyebrow": "Open problem since 1742",
+    "heroTitle": "The Goldbach Conjecture",
+    "heroAccent": "One of mathematics' most beloved unsolved problems.",
+    "heroBody": "Every even number greater than two seems to be the sum of two primes. It has resisted proof for nearly three centuries — yet it can be stated in a single sentence anyone can understand. This page is written for everyone: the professional number theorist and the curious amateur alike.",
+    "notMillennium": "Not a Millennium Prize Problem",
+    "heroCtaPrimary": "Try to prove it on the site",
+    "heroCtaSecondary": "View the Lean workspace",
+    "statementEyebrow": "The statement",
+    "statementTitle": "What exactly is being claimed?",
+    "statementBody": "The **strong (binary) Goldbach conjecture** says:\n\n> Every even integer $n > 2$ can be written as the sum of two prime numbers.\n\nFor example, $4 = 2 + 2$, $10 = 3 + 7 = 5 + 5$, and $100 = 3 + 97$. No counterexample has ever been found, and computers have checked every even number up to at least $4 \\times 10^{18}$.\n\nA weaker cousin, the **ternary (weak) Goldbach conjecture**, claims that every odd integer greater than $5$ is the sum of three primes. This was settled affirmatively by Harald Helfgott in 2013.\n\nOn this site we formalize the strong form — shown in the workspace card on this page. The `sorry` is the gap you are invited to close.",
+    "statementCardCaption": "Goldbach.lean — the formal statement on this site",
+    "historyEyebrow": "A letter from 1742",
+    "historyTitle": "How a casual correspondence became a legend",
+    "historyBody": "In a letter dated **7 June 1742**, the Prussian mathematician **Christian Goldbach** shared with **Leonhard Euler** a speculative observation about primes. Euler found it compelling, restated it in the clean form we use today, and replied that he was *\"firmly convinced of its truth, though he could not prove it.\"*\n\nAnd so the problem entered the mathematical canon — not through a grand theorem, but through a friendly note between two of the greatest mathematicians of the Enlightenment. For nearly 300 years it has been a touchstone: simple to state, maddening to prove.",
+    "chinaEyebrow": "A Chinese story",
+    "chinaTitle": "Chen Jingrun, Xu Chi, and a nation's imagination",
+    "chinaBody": "In **1966**, the Chinese mathematician **Chen Jingrun (陈景润)** proved a result now called **Chen's theorem**: every sufficiently large even number is the sum of a prime and a number that is the product of at most two primes (a semiprime). In the shorthand of sieve theory this is written **\"1 + 2\"** — tantalizingly close to the conjecture's **\"1 + 1\"** (prime plus prime). Published in full in 1973, it remained for decades the strongest result in the direction of Goldbach.\n\nThen, in **January 1978**, the writer **Xu Chi (徐迟)** published a work of reportage literature titled **《哥德巴赫猜想》** (*\"The Goldbach Conjecture\"*) in *People's Literature*. It portrayed Chen's devotion to mathematics during difficult times and captivated a country hungry for science after the Cultural Revolution. The phrase \"哥德巴赫猜想\" became a byword for intellectual aspiration in China, and a generation of students fell in love with mathematics because of it.",
+    "gapEyebrow": "The amateur's dilemma",
+    "gapTitle": "Why \"I proved Goldbach!\" is so hard to be heard",
+    "gapBody": "Goldbach's charm is also its curse. Because the statement is so accessible, **countless enthusiasts believe they have found a proof**. Professional journals are flooded with manuscripts; almost none survive expert scrutiny, and most contain a subtle but fatal gap.\n\nThe result is a painful standoff:\n\n- A serious amateur may have a genuine idea, but has **no affordable, impartial way** to get it checked.\n- Professionals, protecting their time, often cannot engage with every claim.\n- The burden of proof — and the verdict — rests entirely on human authority and reputation.\n\nWhat is missing is not more cleverness, but a **neutral, mechanical arbiter** that can check *any* submitted proof on its own merits, regardless of who wrote it.",
+    "howEyebrow": "A machine that checks for itself",
+    "howTitle": "How the Lean comparator changes the game",
+    "howBody": "This is exactly what the **lean-eval comparator** provides. The conjecture lives on this site as a single, fixed formal statement. You clone the workspace, replace the `sorry` with a real proof, and submit it. Then:\n\n1. **The trusted statement stays put.** Your submission is checked *against* the original theorem — you cannot quietly redefine what \"Goldbach\" means.\n2. **The Lean kernel judges.** Your proof must compile and be accepted by Lean's proof kernel, which only certifies arguments built from the axioms. No hand-waving survives.\n3. **Cheating is structurally blocked.** The comparator checks the permitted axioms and replays the proof term; it even runs a second, independent kernel (nanoda) as a cross-check, all inside an isolated sandbox.\n4. **The verdict is reproducible and gatekeeper-free.** A correct proof is verified because the machine accepts it — not because someone important approved it.\n\nIf you are an amateur who believes you have the proof, this is your chance to let the mathematics speak for itself. If you are a professional, it is a scalable filter that surfaces only machine-verified arguments.\n\nThe Goldbach conjecture may remain open for another century. But the question *\"did this person actually prove it?\"* no longer needs a committee — only a compiler and a kernel.",
+    "ctaTitle": "Think you can close the gap?",
+    "ctaBody": "Clone the prepared Lean workspace, attempt the proof, and submit it for automatic verification. The trusted statement is fixed; the rest is up to you.",
+    "ctaPrimary": "Open the Goldbach challenge",
+    "ctaSecondary": "Browse all problems"
   }
 }
