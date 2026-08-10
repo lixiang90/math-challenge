@@ -46,54 +46,54 @@ function loadEnvLocal() {
 }
 loadEnvLocal();
 
-// 每个问题与：本地 md 文件、匹配关键字、卡片中文标题/摘要。
+// 每个问题与：本地 md 文件、精确 slug（千禧年题均形如 millennium_<name>）、卡片中文标题/摘要。
 const PROBLEMS = [
   {
     key: "p-versus-np",
     file: "p-versus-np.md",
-    keywords: ["p versus np", "p vs np", "p_versus_np", "p/np", " millennium_p_versus_np"],
+    slug: "millennium_p_versus_np",
     titleZh: "P 对 NP 问题",
     summaryZh: "理论计算机科学的中心问题：能被快速验证的问题，是否也能被快速求解？",
   },
   {
     key: "riemann-hypothesis",
     file: "riemann-hypothesis.md",
-    keywords: ["riemann", " millennium_riemann_hypothesis"],
+    slug: "millennium_riemann_hypothesis",
     titleZh: "黎曼猜想",
     summaryZh: "素数分布的核心猜想：黎曼 ζ 函数的所有非平凡零点是否都落在临界线上？",
   },
   {
     key: "poincare-conjecture",
     file: "poincare-conjecture.md",
-    keywords: ["poincare", "poincaré", " millennium_poincare_conjecture"],
+    slug: "millennium_poincare_conjecture",
     titleZh: "庞加莱猜想",
     summaryZh: "三维拓扑的基石：单连通的三维闭流形是否必为三维球面？（已被佩雷尔曼证明）",
   },
   {
     key: "hodge-conjecture",
     file: "hodge-conjecture.md",
-    keywords: ["hodge", " millennium_hodge_conjecture"],
+    slug: "millennium_hodge_conjecture",
     titleZh: "霍奇猜想",
     summaryZh: "代数几何核心猜想：复射影簇上的霍奇类是否都来自代数子簇？",
   },
   {
     key: "yang-mills",
     file: "yang-mills.md",
-    keywords: ["yang", "yang-mills", " millennium_yang_mills"],
+    slug: "millennium_yang_mills",
     titleZh: "杨-米尔斯存在性与质量间隙",
     summaryZh: "量子场论的数学奠基：杨-米尔斯理论是否存在且带有质量间隙？",
   },
   {
     key: "navier-stokes",
     file: "navier-stokes.md",
-    keywords: ["navier", " millennium_navier_stokes"],
+    slug: "millennium_navier_stokes",
     titleZh: "纳维-斯托克斯方程的存在性与光滑性",
     summaryZh: "流体力学根基：三维纳维-斯托克斯方程是否始终存在光滑解？",
   },
   {
     key: "birch-swinnerton-dyer",
     file: "birch-swinnerton-dyer.md",
-    keywords: ["birch", "swinnerton", " millennium_birch_swinnerton_dyer"],
+    slug: "millennium_birch_swinnerton_dyer",
     titleZh: "伯奇和斯温纳顿-戴尔猜想",
     summaryZh: "椭圆曲线的算术：其 L 函数在 s=1 的零点阶数是否等于有理点群的秩？",
   },
@@ -107,28 +107,10 @@ function readMd(file) {
 }
 
 function classify(p) {
-  const hay = [
-    p.title?.en,
-    p.repo_url,
-    (p.tags || []).join(" "),
-    p.slug,
-  ]
-    .join(" ")
-    .toLowerCase();
-  const matched = PROBLEMS.filter((pr) =>
-    pr.keywords.some((k) => hay.includes(k))
-  );
-  if (matched.length === 1) return { mode: "single", problem: matched[0] };
-  if (matched.length > 1) return { mode: "multi", problems: matched };
-  if (
-    hay.includes("millenni") ||
-    hay.includes("clay") ||
-    hay.includes("千禧") ||
-    hay.includes("千")
-  ) {
-    return { mode: "all" };
-  }
-  return null;
+  // 仅精确 slug 匹配：千禧年题 slug 均形如 millennium_<name>，避免误命中标题里
+  // 提到 Riemann/Poincaré 的其他题（uniformization、poincare_bendixson 等）。
+  const hit = PROBLEMS.find((pr) => pr.slug === p.slug);
+  return hit ? { mode: "single", problem: hit } : null;
 }
 
 function buildContent(cls) {
