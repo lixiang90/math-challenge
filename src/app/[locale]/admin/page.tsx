@@ -9,6 +9,7 @@ import { formatDate } from "@/lib/utils";
 import type { AppLocale, Profile, Project } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { DeleteProjectButton } from "@/components/delete-project-button";
+import { AdminSubmissionRetry } from "@/components/admin-submission-retry";
 
 export const dynamic = "force-dynamic";
 
@@ -112,6 +113,22 @@ export default async function AdminPage({
             ))}
           </ul>
         )}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="font-serif text-[18px]">{t("retryHeading")}</h2>
+        <p className="text-[13px] text-ink-muted">{t("retryHint")}</p>
+        <AdminSubmissionRetry
+          labels={{
+            submissionId: t("retrySubmissionId"),
+            placeholder: t("retryPlaceholder"),
+            submit: t("retrySubmit"),
+            submitting: t("retrySubmitting"),
+            success: t("retrySuccess"),
+            invalidId: t("retryInvalidId"),
+            genericError: t("retryGenericError"),
+          }}
+        />
       </section>
 
       <section className="space-y-3">

@@ -307,7 +307,16 @@
     "noAdmins": "暂无站点管理员。",
     "login": "GitHub 账号",
     "grantedAt": "授权时间",
-    "you": "你"
+    "you": "你",
+    "retryHeading": "重试验证提交",
+    "retryHint": "使用原私有 payload 重试验证器错误或超时的提交。已通过、已拒绝和正在运行的提交不能在此重试。",
+    "retrySubmissionId": "提交 ID",
+    "retryPlaceholder": "00000000-0000-0000-0000-000000000000",
+    "retrySubmit": "重试验证",
+    "retrySubmitting": "正在调度…",
+    "retrySuccess": "已调度验证。尝试次数",
+    "retryInvalidId": "请输入有效的提交 UUID。",
+    "retryGenericError": "无法重试该提交。"
   },
   "goldbach": {
     "nav": "哥德巴赫",
