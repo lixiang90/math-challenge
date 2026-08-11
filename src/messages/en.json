@@ -307,7 +307,16 @@
     "noAdmins": "No site admins yet.",
     "login": "GitHub login",
     "grantedAt": "Granted",
-    "you": "You"
+    "you": "You",
+    "retryHeading": "Retry a verifier submission",
+    "retryHint": "Retries the original private payload for a verifier error or timeout. Successful, rejected and active submissions cannot be retried here.",
+    "retrySubmissionId": "Submission ID",
+    "retryPlaceholder": "00000000-0000-0000-0000-000000000000",
+    "retrySubmit": "Retry verification",
+    "retrySubmitting": "Dispatching…",
+    "retrySuccess": "Verification dispatched. Attempt",
+    "retryInvalidId": "Enter a valid submission UUID.",
+    "retryGenericError": "Could not retry this submission."
   },
   "goldbach": {
     "nav": "Goldbach",
